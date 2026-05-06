@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Simulador de Lineup de Baseball</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Controles do lineup">
+        <div>
+          <p class="eyebrow">Baseball Lineup</p>
+          <h1>Lineup do jogo</h1>
+        </div>
+
+        <div class="toolbar-actions">
+          <button id="clearField" type="button">Limpar campo</button>
+          <button id="resetLineup" type="button">Recarregar arquivo</button>
+          <button id="exportLineup" type="button">Exportar JSON</button>
+        </div>
+      </section>
+
+      <section class="simulator">
+        <div class="field-wrap" aria-label="Campo de baseball com jogadores posicionados">
+          <div class="field">
+            <div class="grass-stripe stripe-one"></div>
+            <div class="grass-stripe stripe-two"></div>
+            <div class="grass-stripe stripe-three"></div>
+            <div class="infield-skin"></div>
+            <div class="foul-line foul-left"></div>
+            <div class="foul-line foul-right"></div>
+            <div class="base-path path-first"></div>
+            <div class="base-path path-third"></div>
+            <div class="outfield-arc"></div>
+            <div class="infield-diamond"></div>
+            <div class="mound" title="Pitcher"></div>
+            <div class="base base-home" title="Home plate"></div>
+            <div class="base base-first" title="Primeira base"></div>
+            <div class="base base-second" title="Segunda base"></div>
+            <div class="base base-third" title="Terceira base"></div>
+            <div id="fieldSlots"></div>
+          </div>
+        </div>
+
+        <button id="drawerToggle" class="drawer-toggle" type="button" aria-controls="lineupPanel" aria-expanded="false">
+          Abrir jogadores
+        </button>
+
+        <aside id="lineupPanel" class="lineup-panel is-collapsed" aria-label="Selecionar jogadores e posicoes">
+          <div class="panel-heading">
+            <h2>Jogadores</h2>
+            <span id="rosterCount">0 players</span>
+          </div>
+
+          <div class="dh-mode" aria-label="Escolher modo de lineup">
+            <button id="noDhMode" type="button" class="mode-button is-active">Sem DH</button>
+            <button id="dhMode" type="button" class="mode-button">Com DH</button>
+          </div>
+
+          <div id="selectedPlayer" class="selected-player"></div>
+
+          <div class="position-picker">
+            <h3>Escolher posicao</h3>
+            <div id="positionButtons" class="position-buttons"></div>
+          </div>
+
+          <div id="playerRoster" class="player-roster"></div>
+        </aside>
+      </section>
+    </main>
+
+    <dialog id="exportDialog">
+      <form method="dialog">
+        <div class="dialog-header">
+          <h2>Lineup em JSON</h2>
+          <button class="icon-button" value="close" aria-label="Fechar">x</button>
+        </div>
+        <textarea id="exportOutput" readonly></textarea>
+      </form>
+    </dialog>
+
+    <script src="lineup-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
