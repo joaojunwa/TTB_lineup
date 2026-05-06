@@ -409,8 +409,8 @@ function getBattingPrefix(player) {
     return "";
   }
 
-  if (player.group === "Lineup") {
-    return `${escapeHtml(battingOrders[player.id] || player.battingOrder)}- `;
+  if (isLineupPlayer(player.id)) {
+    return `${escapeHtml(battingOrders[player.id] || player.battingOrder || "")}- `;
   }
 
   return "";
@@ -420,7 +420,7 @@ function getRosterSections() {
   const dhPlayer = dhEnabled ? getPlayer(dhAssignment) : null;
   const assignedIds = new Set(Object.values(assignments).filter(Boolean));
   const lineupCards = roster
-    .filter((player) => player.group === "Lineup" || assignedIds.has(player.id))
+    .filter((player) => assignedIds.has(player.id))
     .concat(dhPlayer && dhPlayer.group !== "Lineup" ? [dhPlayer] : [])
     .filter((player, index, list) => list.findIndex((item) => item.id === player.id) === index)
     .sort((first, second) => getLineupSortOrder(first) - getLineupSortOrder(second));
@@ -446,6 +446,18 @@ function getLineupSortOrder(player) {
   }
 
   return battingOrders[player.id] || player.battingOrder || 99;
+}
+
+function isLineupPlayer(playerId) {
+  if (!playerId) {
+    return false;
+  }
+
+  if (dhEnabled && dhAssignment === playerId) {
+    return true;
+  }
+
+  return Object.values(assignments).includes(playerId);
 }
 
 function getPlayerStatus(player, assignedPosition) {
@@ -477,8 +489,11 @@ function getActiveBatterIds() {
 
 function renderOrderSelect(player) {
   const activeBatterIds = getActiveBatterIds();
-  const maxOrder = activeBatterIds.length || 9;
+  const maxOrder = activeBatterIds.length || 0;
   const currentOrder = battingOrders[player.id] || getPitcherBattingOrder();
+  if (!maxOrder) {
+    return "";
+  }
   const options = Array.from({ length: maxOrder }, (_, index) => {
     const order = index + 1;
     return `<option value="${order}" ${order === currentOrder ? "selected" : ""}>${order}</option>`;
@@ -496,6 +511,9 @@ function renderOrderSelect(player) {
 
 function setBattingOrder(playerId, nextOrder) {
   const activeBatterIds = getActiveBatterIds();
+  if (!activeBatterIds.includes(playerId)) {
+    return;
+  }
   const previousOrder = battingOrders[playerId];
   const otherPlayerId = activeBatterIds.find((id) => id !== playerId && battingOrders[id] === nextOrder);
 
@@ -507,7 +525,11 @@ function setBattingOrder(playerId, nextOrder) {
 }
 
 function getNextOpenBattingOrder() {
-  const usedOrders = new Set(Object.values(battingOrders));
+  const usedOrders = new Set(
+    getActiveBatterIds()
+      .map((playerId) => battingOrders[playerId])
+      .filter(Boolean),
+  );
 
   for (let order = 1; order <= 9; order += 1) {
     if (!usedOrders.has(order)) {
@@ -574,6 +596,7 @@ clearButton.addEventListener("click", () => {
     return list;
   }, {});
   dhAssignment = "";
+  battingOrders = buildInitialBattingOrders();
   render();
 });
 

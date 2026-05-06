@@ -812,56 +812,150 @@ textarea {
 
 @media (max-width: 720px) {
   .app-shell {
-    padding: 10px;
+    padding: 8px;
   }
 
   .toolbar {
     align-items: stretch;
     flex-direction: column;
+    gap: 10px;
+    min-height: auto;
   }
 
   .toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     justify-content: stretch;
   }
 
   .toolbar-actions button {
-    flex: 1 1 130px;
+    min-height: 44px;
+    padding: 0 8px;
+  }
+
+  .simulator,
+  .field-wrap {
+    min-height: auto;
   }
 
   .field {
-    width: min(calc(100vw - 22px), 620px);
+    width: min(calc(100vw - 16px), 620px);
+    min-width: 0;
   }
 
   .field-slot {
-    width: 102px;
-    min-height: 96px;
+    width: 84px;
+    min-height: 84px;
   }
 
   .field-slot.is-empty {
-    min-height: 62px;
+    min-height: 58px;
   }
 
   .player-photo {
-    width: 54px;
-    height: 54px;
+    width: 46px;
+    height: 46px;
   }
 
   .player-chip {
-    width: 102px;
-    padding: 4px 5px;
+    width: 84px;
+    padding: 2px 3px;
   }
 
   .player-chip span {
-    max-width: 98px;
+    max-width: 82px;
+    font-size: 0.6rem;
+  }
+
+  .player-chip strong {
+    width: 25px;
+    height: 25px;
     font-size: 0.68rem;
   }
 
   .position-buttons {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .position-button {
+    min-height: 58px;
+    padding: 8px 4px;
+  }
+
+  .position-button strong {
+    font-size: 0.72rem;
+  }
+
+  .position-button span {
+    font-size: 0.62rem;
+  }
+
+  .drawer-toggle {
+    position: fixed;
+    top: auto;
+    right: 12px;
+    bottom: 12px;
+    min-height: 46px;
+    padding: 0 14px;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .lineup-panel {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    max-height: 100vh;
+    border-radius: 0;
+    padding: 18px 12px 86px;
+    transform: translateY(0);
+  }
+
+  .lineup-panel.is-collapsed {
+    transform: translateY(100%);
+  }
+
+  .panel-heading {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: var(--panel);
+    padding-bottom: 8px;
+  }
+
+  .selected-player {
+    grid-template-columns: 48px minmax(0, 1fr);
+    padding: 8px;
+  }
+
+  .selected-photo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .selected-player strong {
+    font-size: 0.9rem;
+  }
+
+  .selected-player small {
+    white-space: normal;
+  }
+
+  .roster-group.is-lineup .roster-player {
+    grid-template-columns: 34px minmax(0, 1fr) 54px;
+    min-height: 48px;
+  }
+
+  .roster-group.is-lineup .roster-name {
+    font-size: 0.8rem;
   }
 
   .roster-group.is-elenco .roster-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .roster-group.is-elenco .roster-player {
+    min-height: 64px;
   }
 
   .roster-player {
