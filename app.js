@@ -17,11 +17,12 @@ const bench = Array.isArray(window.BENCH_DATA) ? window.BENCH_DATA : [];
 const roster = buildRoster(starters, bench);
 
 let selectedPlayerId = roster[0]?.id ?? "";
-let assignments = buildInitialAssignments();
-let battingOrders = buildInitialBattingOrders();
+let assignments = buildEmptyAssignments();
+let battingOrders = {};
 let dhEnabled = false;
 let dhAssignment = "";
 let draggedPlayerId = "";
+let lineupPending = new Set();
 
 const fieldSlots = document.querySelector("#fieldSlots");
 const rosterCount = document.querySelector("#rosterCount");
@@ -74,6 +75,13 @@ function buildInitialBattingOrders() {
   }, {});
 }
 
+function buildEmptyAssignments() {
+  return positions.reduce((list, position) => {
+    list[position.id] = "";
+    return list;
+  }, {});
+}
+
 function slug(value) {
   return String(value)
     .toLowerCase()
@@ -109,9 +117,9 @@ function assignSelectedPlayer(positionId) {
 }
 
 function assignPlayerToPosition(playerId, positionId) {
-  if (!playerId) {
-    return;
-  }
+  if (!playerId) return;
+
+  if (!isLineupPlayer(playerId) && getActiveBatterIds().length >= 9) return;
 
   selectedPlayerId = playerId;
 
@@ -121,29 +129,33 @@ function assignPlayerToPosition(playerId, positionId) {
         assignments[key] = "";
       }
     });
-
     if (!battingOrders[playerId]) {
       battingOrders[playerId] = getPitcherBattingOrder();
     }
-
+    lineupPending.delete(playerId);
     dhAssignment = playerId;
     render();
     return;
   }
 
-  Object.keys(assignments).forEach((key) => {
-    if (assignments[key] === playerId) {
-      assignments[key] = "";
-    }
-  });
+  const currentPosition = Object.keys(assignments).find((key) => assignments[key] === playerId) ?? null;
+  const displacedPlayerId = assignments[positionId] ?? "";
 
-  if (dhAssignment === playerId) {
-    dhAssignment = "";
+  if (displacedPlayerId) {
+    if (currentPosition) {
+      assignments[currentPosition] = displacedPlayerId;
+    } else {
+      lineupPending.add(displacedPlayerId);
+    }
+  } else if (currentPosition) {
+    assignments[currentPosition] = "";
   }
 
+  if (dhAssignment === playerId) dhAssignment = "";
+  lineupPending.delete(playerId);
+
   if (!battingOrders[playerId]) {
-    const replacedPlayerId = assignments[positionId];
-    battingOrders[playerId] = battingOrders[replacedPlayerId] || getNextOpenBattingOrder();
+    battingOrders[playerId] = battingOrders[displacedPlayerId] || getNextOpenBattingOrder();
   }
 
   assignments[positionId] = playerId;
@@ -173,6 +185,111 @@ function endDrag(event) {
 
 function getDraggedPlayerId(event) {
   return event.dataTransfer?.getData("text/plain") || draggedPlayerId;
+}
+
+function addLineupDropTarget(element) {
+  element.addEventListener("dragover", (event) => {
+    const playerId = getDraggedPlayerId(event);
+    if (!playerId) return;
+
+    const fromBench = !isLineupPlayer(playerId);
+    const targetCard = event.target.closest(".roster-player[data-player-id]");
+
+    if (fromBench) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      element.classList.add("is-drop-hover");
+    } else if (targetCard) {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+      const rect = targetCard.getBoundingClientRect();
+      const insertBefore = event.clientY < rect.top + rect.height / 2;
+      targetCard.classList.toggle("is-drag-above", insertBefore);
+      targetCard.classList.toggle("is-drag-below", !insertBefore);
+    }
+  });
+
+  element.addEventListener("dragleave", (event) => {
+    if (!element.contains(event.relatedTarget)) {
+      element.classList.remove("is-drop-hover");
+      document.querySelectorAll(".roster-player").forEach((card) => {
+        card.classList.remove("is-drag-above", "is-drag-below");
+      });
+    }
+  });
+
+  element.addEventListener("drop", (event) => {
+    const playerId = getDraggedPlayerId(event);
+    if (!playerId) return;
+
+    const fromBench = !isLineupPlayer(playerId);
+    const targetCard = event.target.closest(".roster-player[data-player-id]");
+
+    event.preventDefault();
+    element.classList.remove("is-drop-hover");
+    document.querySelectorAll(".roster-player").forEach((card) => {
+      card.classList.remove("is-drag-above", "is-drag-below");
+    });
+
+    if (fromBench) {
+      addToLineup(playerId);
+    } else if (targetCard) {
+      const targetId = targetCard.dataset.playerId;
+      const rect = targetCard.getBoundingClientRect();
+      const insertBefore = event.clientY < rect.top + rect.height / 2;
+      reorderLineup(playerId, targetId, insertBefore);
+    }
+  });
+}
+
+function addToLineup(playerId) {
+  if (!playerId || isLineupPlayer(playerId)) return;
+  if (getActiveBatterIds().length >= 9) return;
+  lineupPending.add(playerId);
+  if (!battingOrders[playerId]) {
+    battingOrders[playerId] = getNextOpenBattingOrder();
+  }
+  selectedPlayerId = playerId;
+  render();
+}
+
+function removeFromLineup(playerId) {
+  Object.keys(assignments).forEach((key) => {
+    if (assignments[key] === playerId) assignments[key] = "";
+  });
+  if (dhAssignment === playerId) dhAssignment = "";
+  lineupPending.delete(playerId);
+  delete battingOrders[playerId];
+  compactBattingOrders();
+  if (selectedPlayerId === playerId) selectedPlayerId = "";
+  render();
+}
+
+function compactBattingOrders() {
+  [...getActiveBatterIds()]
+    .sort((a, b) => (battingOrders[a] || 99) - (battingOrders[b] || 99))
+    .forEach((id, index) => {
+      battingOrders[id] = index + 1;
+    });
+}
+
+function reorderLineup(draggedId, targetId, insertBefore) {
+  if (draggedId === targetId) return;
+  const activeBatterIds = getActiveBatterIds();
+  if (!activeBatterIds.includes(draggedId) || !activeBatterIds.includes(targetId)) return;
+
+  const sorted = [...activeBatterIds].sort(
+    (a, b) => (battingOrders[a] || 99) - (battingOrders[b] || 99),
+  );
+  const filtered = sorted.filter((id) => id !== draggedId);
+  const targetIndex = filtered.indexOf(targetId);
+  if (targetIndex === -1) return;
+
+  filtered.splice(insertBefore ? targetIndex : targetIndex + 1, 0, draggedId);
+  filtered.forEach((id, index) => {
+    battingOrders[id] = index + 1;
+  });
+  render();
 }
 
 function addDropTarget(element, positionId) {
@@ -338,6 +455,10 @@ function renderRoster() {
     group.className = `roster-group ${groupName === "Lineup" ? "is-lineup" : "is-elenco"}`;
     group.innerHTML = `<h3>${escapeHtml(groupName)}</h3>`;
 
+    if (groupName === "Lineup") {
+      addLineupDropTarget(group);
+    }
+
     const grid = document.createElement("div");
     grid.className = "roster-grid";
 
@@ -387,10 +508,33 @@ function renderRoster() {
 
       addFallback(card.querySelector("img"), player);
       card.querySelector("img").draggable = false;
+
+      if (groupName === "Lineup") {
+        card.dataset.playerId = player.id;
+
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "lineup-remove-btn";
+        removeBtn.setAttribute("aria-label", `Remover ${escapeHtml(player.name)} do lineup`);
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeFromLineup(player.id);
+        });
+        card.append(removeBtn);
+      }
+
       grid.append(card);
     });
 
     group.append(grid);
+
+    if (groupName === "Lineup" && players.length === 0) {
+      const hint = document.createElement("p");
+      hint.className = "lineup-empty-hint";
+      hint.textContent = "Arraste jogadores do elenco para o lineup";
+      group.append(hint);
+    }
     playerRoster.append(group);
   });
 }
@@ -420,7 +564,7 @@ function getRosterSections() {
   const dhPlayer = dhEnabled ? getPlayer(dhAssignment) : null;
   const assignedIds = new Set(Object.values(assignments).filter(Boolean));
   const lineupCards = roster
-    .filter((player) => assignedIds.has(player.id))
+    .filter((player) => assignedIds.has(player.id) || lineupPending.has(player.id))
     .concat(dhPlayer && dhPlayer.group !== "Lineup" ? [dhPlayer] : [])
     .filter((player, index, list) => list.findIndex((item) => item.id === player.id) === index)
     .sort((first, second) => getLineupSortOrder(first) - getLineupSortOrder(second));
@@ -457,6 +601,10 @@ function isLineupPlayer(playerId) {
     return true;
   }
 
+  if (lineupPending.has(playerId)) {
+    return true;
+  }
+
   return Object.values(assignments).includes(playerId);
 }
 
@@ -470,19 +618,22 @@ function getPlayerStatus(player, assignedPosition) {
     return "pitcher";
   }
 
+  if (lineupPending.has(player.id)) {
+    return "a definir";
+  }
+
   return assignedPosition || "banco";
 }
 
 function getActiveBatterIds() {
-  const starterIds = starters
-    .map((starter) => getPlayer(assignments[starter.position])?.id)
-    .filter(Boolean);
+  const onFieldIds = Object.values(assignments).filter(Boolean);
+  let batterIds = [...new Set([...onFieldIds, ...lineupPending])];
 
   if (!dhEnabled || !dhAssignment) {
-    return starterIds;
+    return batterIds;
   }
 
-  return starterIds
+  return batterIds
     .filter((playerId) => playerId !== assignments.P)
     .concat(dhAssignment);
 }
@@ -591,12 +742,10 @@ function render() {
 }
 
 clearButton.addEventListener("click", () => {
-  assignments = positions.reduce((list, position) => {
-    list[position.id] = "";
-    return list;
-  }, {});
+  assignments = buildEmptyAssignments();
   dhAssignment = "";
-  battingOrders = buildInitialBattingOrders();
+  battingOrders = {};
+  lineupPending.clear();
   render();
 });
 
@@ -604,6 +753,7 @@ resetButton.addEventListener("click", () => {
   assignments = buildInitialAssignments();
   battingOrders = buildInitialBattingOrders();
   dhAssignment = "";
+  lineupPending.clear();
   selectedPlayerId = roster[0]?.id ?? "";
   render();
 });
@@ -611,7 +761,6 @@ resetButton.addEventListener("click", () => {
 drawerToggle.addEventListener("click", () => {
   const collapsed = lineupPanel.classList.toggle("is-collapsed");
   drawerToggle.setAttribute("aria-expanded", String(!collapsed));
-  drawerToggle.textContent = collapsed ? "Abrir jogadores" : "Jogadores";
 });
 
 noDhMode.addEventListener("click", () => {
@@ -643,3 +792,284 @@ selectedPlayer.addEventListener("dragstart", (event) => {
 selectedPlayer.addEventListener("dragend", endDrag);
 
 render();
+
+/* ═══════════════════════════════
+   TAB NAVIGATION
+═══════════════════════════════ */
+
+const lineupTab = document.querySelector("#lineupTab");
+const statusTab = document.querySelector("#statusTab");
+const tabBtns   = document.querySelectorAll(".tab-btn");
+
+tabBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+    tabBtns.forEach((b) => b.classList.toggle("is-active", b === btn));
+    lineupTab.hidden = tab !== "lineup";
+    statusTab.hidden = tab !== "status";
+    if (tab === "status") renderStatus();
+  });
+});
+
+/* ═══════════════════════════════
+   STATUS GAME STATE
+═══════════════════════════════ */
+
+const gameState = {
+  inning: 1,
+  isTop: true,
+  outs: 0,
+  balls: 0,
+  strikes: 0,
+  bases: [false, false, false],
+  currentBatterIndex: 0,
+  plays: [],
+  currentPitches: [],
+};
+
+function getStatusBatterList() {
+  return getActiveBatterIds()
+    .map((id) => getPlayer(id))
+    .filter(Boolean)
+    .sort((a, b) => (battingOrders[a.id] || 99) - (battingOrders[b.id] || 99));
+}
+
+function renderCountDots(containerId, filled, total, outStyle) {
+  const el = document.querySelector(`#${containerId}`);
+  if (!el) return;
+  el.innerHTML = Array.from({ length: total }, (_, i) => {
+    const on = i < filled;
+    return `<span class="count-dot${on ? " is-on" : ""}${on && outStyle ? " is-out" : ""}"></span>`;
+  }).join("");
+}
+
+function renderPitchDots() {
+  const dots = document.querySelector("#pitchDots");
+  if (!dots) return;
+  dots.innerHTML = gameState.currentPitches
+    .map(
+      ({ x, y, isStrike }) =>
+        `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"></span>`,
+    )
+    .join("");
+}
+
+function renderStatusBattingOrder() {
+  const list = document.querySelector("#statusBattingOrder");
+  if (!list) return;
+  const batters = getStatusBatterList();
+  if (batters.length === 0) {
+    list.innerHTML = `<li style="color:var(--text-muted);font-size:0.82rem;padding:8px">Monte o lineup na aba Lineup primeiro.</li>`;
+    return;
+  }
+  const current = gameState.currentBatterIndex % batters.length;
+  list.innerHTML = batters
+    .map((player, i) => {
+      const pos = getAssignedPosition(player.id) || "—";
+      const isCurrent = i === current;
+      return `<li class="status-batter-item${isCurrent ? " is-current" : ""}">
+        <span class="status-batter-num">${i + 1}</span>
+        <span>${escapeHtml(player.name)}</span>
+        <span class="status-batter-pos">${escapeHtml(pos)}</span>
+      </li>`;
+    })
+    .join("");
+}
+
+function renderScoreboardLabels() {
+  const awayName = document.querySelector("#awayName")?.value || "Visitante";
+  const homeName = document.querySelector("#homeName")?.value || "TTB";
+  const awayLabel = document.querySelector("#awayLabel");
+  const homeLabel = document.querySelector("#homeLabel");
+  if (awayLabel) awayLabel.textContent = awayName;
+  if (homeLabel) homeLabel.textContent = homeName;
+}
+
+function computeRuns() {
+  ["away", "home"].forEach((team) => {
+    const cells = document.querySelectorAll(`td[data-team="${team}"]`);
+    let total = 0;
+    cells.forEach((cell) => {
+      const val = parseInt(cell.textContent.trim(), 10);
+      if (!isNaN(val)) total += val;
+    });
+    const runsEl = document.querySelector(`#${team}Runs`);
+    if (runsEl) runsEl.textContent = total;
+  });
+}
+
+function highlightCurrentInning() {
+  document.querySelectorAll(".scoreboard-table td[data-inning]").forEach((td) => {
+    td.classList.toggle(
+      "is-current-inning",
+      parseInt(td.dataset.inning, 10) === gameState.inning,
+    );
+  });
+}
+
+function renderStatus() {
+  const inningHalf = document.querySelector("#inningHalf");
+  const inningNum  = document.querySelector("#inningNumber");
+  if (inningHalf) inningHalf.textContent = gameState.isTop ? "▲" : "▼";
+  if (inningNum)  inningNum.textContent  = gameState.inning;
+
+  renderCountDots("ballDots",   gameState.balls,   4, false);
+  renderCountDots("strikeDots", gameState.strikes, 3, false);
+  renderCountDots("outDots",    gameState.outs,    3, true);
+
+  ["baseFirst", "baseSecond", "baseThird"].forEach((id, i) => {
+    const btn = document.querySelector(`#${id}`);
+    if (btn) {
+      btn.classList.toggle("is-occupied", gameState.bases[i]);
+      btn.setAttribute("aria-pressed", String(gameState.bases[i]));
+    }
+  });
+
+  renderPitchDots();
+  renderStatusBattingOrder();
+  renderScoreboardLabels();
+  highlightCurrentInning();
+}
+
+function resetCount() {
+  gameState.balls   = 0;
+  gameState.strikes = 0;
+  gameState.currentPitches = [];
+  renderStatus();
+}
+
+function nextBatter() {
+  gameState.currentBatterIndex += 1;
+  resetCount();
+}
+
+function addOut() {
+  gameState.outs += 1;
+  logPlay(`Out #${gameState.outs}`);
+  if (gameState.outs >= 3) {
+    gameState.outs = 0;
+    gameState.isTop = !gameState.isTop;
+    if (!gameState.isTop) gameState.inning += 1;
+    gameState.bases = [false, false, false];
+    logPlay(`— Fim do ${gameState.isTop ? "▲" : "▼"} ${gameState.inning}º inning —`);
+  }
+  resetCount();
+}
+
+function logPlay(text) {
+  const batters   = getStatusBatterList();
+  const current   = batters[gameState.currentBatterIndex % Math.max(batters.length, 1)];
+  const meta      = `${gameState.isTop ? "▲" : "▼"}${gameState.inning}`;
+  gameState.plays.unshift({ meta, text: current ? `${current.name} — ${text}` : text });
+  renderPlayLog();
+}
+
+function renderPlayLog() {
+  const list = document.querySelector("#playLog");
+  if (!list) return;
+  list.innerHTML = gameState.plays
+    .map(
+      ({ meta, text }) =>
+        `<li class="play-log-item">
+          <span class="play-log-meta">${escapeHtml(meta)}</span>
+          <span class="play-log-text">${escapeHtml(text)}</span>
+        </li>`,
+    )
+    .join("");
+}
+
+/* ── Pitch zone click ── */
+const pitchWrapper = document.querySelector("#pitchZoneWrapper");
+const pitchZoneBox = document.querySelector("#pitchZoneBox");
+
+if (pitchWrapper && pitchZoneBox) {
+  pitchWrapper.addEventListener("click", (event) => {
+    const wRect = pitchWrapper.getBoundingClientRect();
+    const zRect = pitchZoneBox.getBoundingClientRect();
+    const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
+    const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
+
+    const insideX = event.clientX >= zRect.left && event.clientX <= zRect.right;
+    const insideY = event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
+    const isStrike = insideX && insideY;
+
+    gameState.currentPitches.push({ x, y, isStrike });
+
+    if (isStrike) {
+      gameState.strikes += 1;
+      if (gameState.strikes >= 3) {
+        logPlay("Strikeout");
+        nextBatter();
+        return;
+      }
+    } else {
+      gameState.balls += 1;
+      if (gameState.balls >= 4) {
+        logPlay("Walk (BB)");
+        nextBatter();
+        return;
+      }
+    }
+    renderStatus();
+  });
+}
+
+/* ── Status button handlers ── */
+document.querySelector("#btnBall")?.addEventListener("click", () => {
+  gameState.balls += 1;
+  if (gameState.balls >= 4) { logPlay("Walk (BB)"); nextBatter(); }
+  else renderStatus();
+});
+
+document.querySelector("#btnStrike")?.addEventListener("click", () => {
+  gameState.strikes += 1;
+  if (gameState.strikes >= 3) { logPlay("Strikeout"); nextBatter(); }
+  else renderStatus();
+});
+
+document.querySelector("#btnOut")?.addEventListener("click", addOut);
+document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
+document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
+
+document.querySelector("#prevInning")?.addEventListener("click", () => {
+  if (gameState.inning > 1 || !gameState.isTop) {
+    if (gameState.isTop) { gameState.inning -= 1; gameState.isTop = false; }
+    else gameState.isTop = true;
+    renderStatus();
+  }
+});
+
+document.querySelector("#nextInning")?.addEventListener("click", () => {
+  if (gameState.isTop) gameState.isTop = false;
+  else { gameState.isTop = true; gameState.inning += 1; }
+  renderStatus();
+});
+
+["baseFirst", "baseSecond", "baseThird"].forEach((id, i) => {
+  document.querySelector(`#${id}`)?.addEventListener("click", () => {
+    gameState.bases[i] = !gameState.bases[i];
+    renderStatus();
+  });
+});
+
+document.querySelector("#btnAddPlay")?.addEventListener("click", () => {
+  const input = document.querySelector("#playInput");
+  const text  = input?.value.trim();
+  if (!text) return;
+  logPlay(text);
+  if (input) input.value = "";
+  renderStatus();
+});
+
+document.querySelector("#playInput")?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") document.querySelector("#btnAddPlay")?.click();
+});
+
+/* ── Scoreboard: auto-sum runs on cell edit ── */
+document.querySelectorAll(".scoreboard-table td[contenteditable][data-team]").forEach((td) => {
+  td.addEventListener("input", computeRuns);
+});
+
+/* ── Team name inputs sync labels ── */
+document.querySelector("#awayName")?.addEventListener("input", renderScoreboardLabels);
+document.querySelector("#homeName")?.addEventListener("input", renderScoreboardLabels);
