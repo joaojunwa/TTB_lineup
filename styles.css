@@ -1545,3 +1545,318 @@ textarea {
     order: -1;
   }
 }
+
+/* ═══════════════════════════════
+   TESTE TAB
+═══════════════════════════════ */
+
+.tab-btn-teste {
+  border: 1px solid rgba(246, 200, 79, 0.3);
+}
+
+.tab-btn-teste.is-active {
+  border-color: var(--accent);
+}
+
+.teste-view {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.teste-setup {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  flex-wrap: wrap;
+}
+
+.teste-setup-fields {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+  flex-wrap: wrap;
+}
+
+.teste-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.teste-label {
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.teste-input {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0f1513;
+  color: #f8f2e7;
+  padding: 0 12px;
+  font-size: 0.88rem;
+  min-width: 180px;
+}
+
+.teste-input:focus {
+  outline: none;
+  border-color: rgba(246, 200, 79, 0.5);
+}
+
+.teste-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.teste-main {
+  display: grid;
+  grid-template-columns: 220px 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.teste-section-title {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 0.76rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+/* Batter list */
+.teste-batters-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+}
+
+.teste-batter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.teste-batter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.86rem;
+  color: var(--text-muted);
+  transition: background 120ms, border-color 120ms;
+}
+
+.teste-batter-item:hover {
+  background: #2b3531;
+  border-color: var(--line);
+  color: #f8f2e7;
+}
+
+.teste-batter-item.is-current {
+  background: #303122;
+  border-color: var(--accent);
+  color: #f8f2e7;
+  font-weight: 900;
+}
+
+.teste-batter-num {
+  width: 18px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+.teste-batter-remove {
+  margin-left: auto;
+  width: 18px;
+  height: 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 120, 120, 0.5);
+  font-size: 0.9rem;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 120ms, background 120ms;
+  flex-shrink: 0;
+}
+
+.teste-batter-item:hover .teste-batter-remove {
+  opacity: 1;
+}
+
+.teste-batter-remove:hover {
+  background: rgba(200, 50, 50, 0.4);
+  color: #fff;
+}
+
+/* Center panel */
+.teste-center-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.teste-atbat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.teste-current-name {
+  font-size: 1rem;
+  font-weight: 900;
+  color: #f8f2e7;
+}
+
+.teste-current-count {
+  font-size: 0.82rem;
+  font-weight: 800;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.teste-atbat-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+
+.atbat-btn {
+  min-height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #1a2320;
+  color: #f8f2e7;
+  font-size: 0.84rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 120ms, border-color 120ms;
+}
+
+.atbat-btn:hover { background: #2b3531; }
+
+.atbat-hit    { border-color: rgba(76, 175, 125, 0.5); color: #4caf7d; }
+.atbat-hit:hover { background: rgba(76, 175, 125, 0.15); }
+
+.atbat-out    { border-color: rgba(224, 82, 82, 0.5); color: #e05252; }
+.atbat-out:hover { background: rgba(224, 82, 82, 0.15); }
+
+.atbat-ball   { border-color: rgba(80, 180, 120, 0.4); color: #6bcf9e; }
+.atbat-strike { border-color: rgba(246, 200, 79, 0.4); color: var(--accent); }
+.atbat-undo   { border-color: rgba(255,255,255,0.1); color: var(--text-muted); font-size: 0.76rem; }
+.atbat-next   { border-color: rgba(255,255,255,0.15); font-size: 0.76rem; }
+
+/* Stats panel */
+.teste-stats-panel {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 14px;
+}
+
+.teste-stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+}
+
+.teste-stats-table th,
+.teste-stats-table td {
+  text-align: center;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+}
+
+.teste-stats-table th {
+  background: #0f1513;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.teste-stats-table td:first-child {
+  text-align: left;
+  font-weight: 700;
+}
+
+.teste-stats-table tr.is-current-batter td {
+  background: rgba(246, 200, 79, 0.07);
+}
+
+.teste-stats-table td.avg-cell {
+  font-weight: 900;
+  color: var(--accent);
+  font-size: 0.92rem;
+}
+
+.teste-leaderboard {
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(246, 200, 79, 0.4);
+  border-radius: 8px;
+  background: #303122;
+}
+
+.leaderboard-entry {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.88rem;
+}
+
+.leaderboard-entry:last-child { border-bottom: 0; }
+
+.leaderboard-rank {
+  width: 22px;
+  font-weight: 900;
+  color: var(--text-muted);
+  font-size: 0.76rem;
+}
+
+.leaderboard-rank.rank-1 { color: #f6c84f; font-size: 1rem; }
+.leaderboard-rank.rank-2 { color: #c0c0c0; }
+.leaderboard-rank.rank-3 { color: #cd7f32; }
+
+.leaderboard-avg {
+  margin-left: auto;
+  font-weight: 900;
+  color: var(--accent);
+  font-size: 0.96rem;
+}
+
+@media (max-width: 900px) {
+  .teste-main {
+    grid-template-columns: 1fr;
+  }
+}

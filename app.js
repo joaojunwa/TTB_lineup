@@ -799,7 +799,14 @@ render();
 
 const lineupTab = document.querySelector("#lineupTab");
 const statusTab = document.querySelector("#statusTab");
+const testeTab  = document.querySelector("#testeTab");
 const tabBtns   = document.querySelectorAll(".tab-btn");
+
+// Hide drawer toggle when not on lineup tab
+function updateToolbarForTab(tab) {
+  const drawerBtn = document.querySelector("#drawerToggle");
+  if (drawerBtn) drawerBtn.style.display = tab === "lineup" ? "" : "none";
+}
 
 tabBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -807,7 +814,10 @@ tabBtns.forEach((btn) => {
     tabBtns.forEach((b) => b.classList.toggle("is-active", b === btn));
     lineupTab.hidden = tab !== "lineup";
     statusTab.hidden = tab !== "status";
+    testeTab.hidden  = tab !== "teste";
+    updateToolbarForTab(tab);
     if (tab === "status") renderStatus();
+    if (tab === "teste")  renderTeste();
   });
 });
 
@@ -1073,3 +1083,259 @@ document.querySelectorAll(".scoreboard-table td[contenteditable][data-team]").fo
 /* ── Team name inputs sync labels ── */
 document.querySelector("#awayName")?.addEventListener("input", renderScoreboardLabels);
 document.querySelector("#homeName")?.addEventListener("input", renderScoreboardLabels);
+
+/* ═══════════════════════════════
+   TESTE TAB
+═══════════════════════════════ */
+
+const testeState = {
+  batters: [],        // { id, name, completedABs: ['hit'|'out'|'k'|'bb'], currentPitches: [{x,y,isStrike}] }
+  currentIndex: 0,
+  nextId: 1,
+};
+
+function testeBatterAB(batter) {
+  return batter.completedABs.filter((r) => r === "hit" || r === "out" || r === "k").length;
+}
+function testeBatterHits(batter) {
+  return batter.completedABs.filter((r) => r === "hit").length;
+}
+function testeBatterBB(batter) {
+  return batter.completedABs.filter((r) => r === "bb").length;
+}
+function testeBatterK(batter) {
+  return batter.completedABs.filter((r) => r === "k").length;
+}
+function testeAvg(batter) {
+  const ab = testeBatterAB(batter);
+  if (ab === 0) return ".000";
+  const avg = testeBatterHits(batter) / ab;
+  return "." + String(Math.round(avg * 1000)).padStart(3, "0");
+}
+
+function testeCurrentBatter() {
+  return testeState.batters[testeState.currentIndex] ?? null;
+}
+
+function testeCurrentBalls() {
+  const b = testeCurrentBatter();
+  return b ? b.currentPitches.filter((p) => !p.isStrike).length : 0;
+}
+
+function testeCurrentStrikes() {
+  const b = testeCurrentBatter();
+  return b ? b.currentPitches.filter((p) => p.isStrike).length : 0;
+}
+
+function testeCompleteAB(result) {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  b.completedABs.push(result);
+  b.currentPitches = [];
+  renderTeste();
+}
+
+function testeAddPitch(x, y, isStrike) {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  b.currentPitches.push({ x, y, isStrike });
+  const strikes = testeCurrentStrikes();
+  const balls   = testeCurrentBalls();
+  if (strikes >= 3) { testeCompleteAB("k"); return; }
+  if (balls   >= 4) { testeCompleteAB("bb"); return; }
+  renderTeste();
+}
+
+function renderTestePitchDots() {
+  const b    = testeCurrentBatter();
+  const dots = document.querySelector("#testePitchDots");
+  if (!dots) return;
+  dots.innerHTML = (b?.currentPitches ?? [])
+    .map(({ x, y, isStrike }) =>
+      `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"></span>`)
+    .join("");
+}
+
+function renderTesteBatterList() {
+  const list = document.querySelector("#testeBatterList");
+  if (!list) return;
+  if (testeState.batters.length === 0) {
+    list.innerHTML = `<li style="color:var(--text-muted);font-size:0.8rem;padding:8px">Adicione rebatedores acima.</li>`;
+    return;
+  }
+  list.innerHTML = testeState.batters
+    .map((b, i) => {
+      const isCurrent = i === testeState.currentIndex;
+      return `<li class="teste-batter-item${isCurrent ? " is-current" : ""}" data-idx="${i}">
+        <span class="teste-batter-num">${i + 1}</span>
+        <span>${escapeHtml(b.name)}</span>
+        <button class="teste-batter-remove" data-remove="${i}" aria-label="Remover ${escapeHtml(b.name)}">×</button>
+      </li>`;
+    })
+    .join("");
+
+  list.querySelectorAll(".teste-batter-item").forEach((el) => {
+    el.addEventListener("click", (e) => {
+      if (e.target.closest("[data-remove]")) return;
+      testeState.currentIndex = Number(el.dataset.idx);
+      renderTeste();
+    });
+  });
+  list.querySelectorAll("[data-remove]").forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const idx = Number(btn.dataset.remove);
+      testeState.batters.splice(idx, 1);
+      if (testeState.currentIndex >= testeState.batters.length) {
+        testeState.currentIndex = Math.max(0, testeState.batters.length - 1);
+      }
+      renderTeste();
+    });
+  });
+}
+
+function renderTesteStats() {
+  const tbody = document.querySelector("#testeStatsBody");
+  if (!tbody) return;
+  if (testeState.batters.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-muted);padding:10px">Nenhum rebatedor.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = testeState.batters
+    .map((b, i) => {
+      const isCurrent = i === testeState.currentIndex;
+      return `<tr class="${isCurrent ? "is-current-batter" : ""}">
+        <td>${escapeHtml(b.name)}</td>
+        <td>${testeBatterAB(b)}</td>
+        <td>${testeBatterHits(b)}</td>
+        <td>${testeBatterBB(b)}</td>
+        <td>${testeBatterK(b)}</td>
+        <td class="avg-cell">${testeAvg(b)}</td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderTesteLeaderboard() {
+  const container = document.querySelector("#testeLeaderboard");
+  const content   = document.querySelector("#testeLeaderboardContent");
+  if (!container || !content) return;
+
+  const withAB = testeState.batters.filter((b) => testeBatterAB(b) > 0);
+  if (withAB.length === 0) { container.hidden = true; return; }
+
+  container.hidden = false;
+  const sorted = [...withAB].sort((a, b) => {
+    const avgA = testeBatterHits(a) / testeBatterAB(a);
+    const avgB = testeBatterHits(b) / testeBatterAB(b);
+    return avgB - avgA;
+  });
+
+  const medals = ["🥇", "🥈", "🥉"];
+  content.innerHTML = sorted
+    .map((b, i) => {
+      const rank = i < 3 ? medals[i] : `${i + 1}.`;
+      return `<div class="leaderboard-entry">
+        <span class="leaderboard-rank rank-${i + 1}">${rank}</span>
+        <span>${escapeHtml(b.name)}</span>
+        <span style="color:var(--text-muted);font-size:0.76rem;margin-left:6px">${testeBatterAB(b)} AB · ${testeBatterHits(b)} H</span>
+        <span class="leaderboard-avg">${testeAvg(b)}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+function renderTeste() {
+  const b = testeCurrentBatter();
+
+  const nameEl  = document.querySelector("#testeCurrentName");
+  const countEl = document.querySelector("#testeCurrentCount");
+  if (nameEl)  nameEl.textContent  = b ? b.name : "— selecione um rebatedor —";
+  if (countEl) countEl.textContent = b ? `B: ${testeCurrentBalls()} · S: ${testeCurrentStrikes()}` : "B: 0 · S: 0";
+
+  const pitcherDisplay = document.querySelector("#testePitcherInput");
+  // no separate display needed; input is visible
+
+  renderTesteBatterList();
+  renderTesteStats();
+  renderTestePitchDots();
+  renderTesteLeaderboard();
+}
+
+/* ── Pitch zone (Teste) ── */
+const testePitchWrapper = document.querySelector("#testePitchWrapper");
+const testePitchBox     = document.querySelector("#testePitchBox");
+
+if (testePitchWrapper && testePitchBox) {
+  testePitchWrapper.addEventListener("click", (event) => {
+    if (!testeCurrentBatter()) return;
+    const wRect = testePitchWrapper.getBoundingClientRect();
+    const zRect = testePitchBox.getBoundingClientRect();
+    const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
+    const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
+    const isStrike = event.clientX >= zRect.left && event.clientX <= zRect.right
+                  && event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
+    testeAddPitch(x, y, isStrike);
+  });
+}
+
+/* ── Buttons ── */
+document.querySelector("#testeHit")?.addEventListener("click", () => {
+  if (testeCurrentBatter()) testeCompleteAB("hit");
+});
+document.querySelector("#testeOut")?.addEventListener("click", () => {
+  if (testeCurrentBatter()) testeCompleteAB("out");
+});
+document.querySelector("#testeBall")?.addEventListener("click", () => {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  b.currentPitches.push({ x: 10, y: 50, isStrike: false });
+  if (testeCurrentBalls() >= 4) { testeCompleteAB("bb"); return; }
+  renderTeste();
+});
+document.querySelector("#testeStrike")?.addEventListener("click", () => {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  b.currentPitches.push({ x: 50, y: 50, isStrike: true });
+  if (testeCurrentStrikes() >= 3) { testeCompleteAB("k"); return; }
+  renderTeste();
+});
+document.querySelector("#testeUndo")?.addEventListener("click", () => {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  if (b.currentPitches.length > 0) {
+    b.currentPitches.pop();
+  } else if (b.completedABs.length > 0) {
+    b.completedABs.pop();
+  }
+  renderTeste();
+});
+document.querySelector("#testeNextBatter")?.addEventListener("click", () => {
+  if (testeState.batters.length === 0) return;
+  testeState.currentIndex = (testeState.currentIndex + 1) % testeState.batters.length;
+  renderTeste();
+});
+
+/* ── Add batter ── */
+function testeAddBatter() {
+  const input = document.querySelector("#testeBatterInput");
+  const name  = input?.value.trim();
+  if (!name) return;
+  testeState.batters.push({ id: testeState.nextId++, name, completedABs: [], currentPitches: [] });
+  testeState.currentIndex = testeState.batters.length - 1;
+  if (input) input.value = "";
+  renderTeste();
+}
+
+document.querySelector("#testeAddBatter")?.addEventListener("click", testeAddBatter);
+document.querySelector("#testeBatterInput")?.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") testeAddBatter();
+});
+
+document.querySelector("#testeResetAll")?.addEventListener("click", () => {
+  testeState.batters = [];
+  testeState.currentIndex = 0;
+  const pitcherInput = document.querySelector("#testePitcherInput");
+  if (pitcherInput) pitcherInput.value = "";
+  renderTeste();
+});
