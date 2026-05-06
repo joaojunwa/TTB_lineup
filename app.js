@@ -1,3 +1,5 @@
+const PAGE = document.documentElement.dataset.page || "lineup";
+
 const positions = [
   { id: "P", label: "Pitcher", short: "P", x: 56, y: 62 },
   { id: "C", label: "Catcher", short: "C", x: 52, y: 88 },
@@ -23,6 +25,31 @@ let dhEnabled = false;
 let dhAssignment = "";
 let draggedPlayerId = "";
 let lineupPending = new Set();
+
+function saveLineupState() {
+  try {
+    localStorage.setItem("ttb_lineup", JSON.stringify({
+      assignments,
+      battingOrders,
+      lineupPending: [...lineupPending],
+      dhEnabled,
+      dhAssignment,
+    }));
+  } catch (_) {}
+}
+
+function loadLineupState() {
+  try {
+    const raw = localStorage.getItem("ttb_lineup");
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (s.assignments)   assignments   = s.assignments;
+    if (s.battingOrders) battingOrders = s.battingOrders;
+    if (s.lineupPending) lineupPending = new Set(s.lineupPending);
+    dhEnabled    = s.dhEnabled    ?? false;
+    dhAssignment = s.dhAssignment ?? "";
+  } catch (_) {}
+}
 
 const fieldSlots = document.querySelector("#fieldSlots");
 const rosterCount = document.querySelector("#rosterCount");
@@ -733,93 +760,69 @@ function exportAssignments() {
 }
 
 function render() {
+  if (PAGE !== "lineup") return;
   renderField();
   renderSelectedPlayer();
   renderPositionButtons();
   renderRoster();
   noDhMode.classList.toggle("is-active", !dhEnabled);
   dhMode.classList.toggle("is-active", dhEnabled);
+  saveLineupState();
 }
 
-clearButton.addEventListener("click", () => {
-  assignments = buildEmptyAssignments();
-  dhAssignment = "";
-  battingOrders = {};
-  lineupPending.clear();
-  render();
-});
-
-resetButton.addEventListener("click", () => {
-  assignments = buildInitialAssignments();
-  battingOrders = buildInitialBattingOrders();
-  dhAssignment = "";
-  lineupPending.clear();
-  selectedPlayerId = roster[0]?.id ?? "";
-  render();
-});
-
-drawerToggle.addEventListener("click", () => {
-  const collapsed = lineupPanel.classList.toggle("is-collapsed");
-  drawerToggle.setAttribute("aria-expanded", String(!collapsed));
-});
-
-noDhMode.addEventListener("click", () => {
-  dhEnabled = false;
-  dhAssignment = "";
-  render();
-});
-
-dhMode.addEventListener("click", () => {
-  dhEnabled = true;
-  render();
-});
-
-exportButton.addEventListener("click", () => {
-  exportOutput.value = JSON.stringify(exportAssignments(), null, 2);
-  exportDialog.showModal();
-  exportOutput.select();
-});
-
-selectedPlayer.addEventListener("dragstart", (event) => {
-  if (!selectedPlayerId) {
-    event.preventDefault();
-    return;
-  }
-
-  beginDrag(event, selectedPlayerId);
-});
-
-selectedPlayer.addEventListener("dragend", endDrag);
-
-render();
-
-/* ═══════════════════════════════
-   TAB NAVIGATION
-═══════════════════════════════ */
-
-const lineupTab = document.querySelector("#lineupTab");
-const statusTab = document.querySelector("#statusTab");
-const testeTab  = document.querySelector("#testeTab");
-const tabBtns   = document.querySelectorAll(".tab-btn");
-
-// Hide drawer toggle when not on lineup tab
-function updateToolbarForTab(tab) {
-  const drawerBtn = document.querySelector("#drawerToggle");
-  if (drawerBtn) drawerBtn.style.display = tab === "lineup" ? "" : "none";
-}
-
-tabBtns.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const tab = btn.dataset.tab;
-    tabBtns.forEach((b) => b.classList.toggle("is-active", b === btn));
-    lineupTab.hidden = tab !== "lineup";
-    statusTab.hidden = tab !== "status";
-    testeTab.hidden  = tab !== "teste";
-    updateToolbarForTab(tab);
-    if (tab === "status") renderStatus();
-    if (tab === "teste")  renderTeste();
+if (PAGE === "lineup") {
+  clearButton.addEventListener("click", () => {
+    assignments = buildEmptyAssignments();
+    dhAssignment = "";
+    battingOrders = {};
+    lineupPending.clear();
+    render();
   });
-});
+
+  resetButton.addEventListener("click", () => {
+    assignments = buildInitialAssignments();
+    battingOrders = buildInitialBattingOrders();
+    dhAssignment = "";
+    lineupPending.clear();
+    selectedPlayerId = roster[0]?.id ?? "";
+    render();
+  });
+
+  drawerToggle.addEventListener("click", () => {
+    const collapsed = lineupPanel.classList.toggle("is-collapsed");
+    drawerToggle.setAttribute("aria-expanded", String(!collapsed));
+  });
+
+  noDhMode.addEventListener("click", () => {
+    dhEnabled = false;
+    dhAssignment = "";
+    render();
+  });
+
+  dhMode.addEventListener("click", () => {
+    dhEnabled = true;
+    render();
+  });
+
+  exportButton.addEventListener("click", () => {
+    exportOutput.value = JSON.stringify(exportAssignments(), null, 2);
+    exportDialog.showModal();
+    exportOutput.select();
+  });
+
+  selectedPlayer.addEventListener("dragstart", (event) => {
+    if (!selectedPlayerId) {
+      event.preventDefault();
+      return;
+    }
+    beginDrag(event, selectedPlayerId);
+  });
+
+  selectedPlayer.addEventListener("dragend", endDrag);
+
+  render();
+}
+
 
 /* ═══════════════════════════════
    STATUS GAME STATE
@@ -1024,65 +1027,71 @@ if (pitchWrapper && pitchZoneBox) {
   });
 }
 
-/* ── Status button handlers ── */
-document.querySelector("#btnBall")?.addEventListener("click", () => {
-  gameState.balls += 1;
-  if (gameState.balls >= 4) { logPlay("Walk (BB)"); nextBatter(); }
-  else renderStatus();
-});
+if (PAGE === "status") {
+  loadLineupState();
 
-document.querySelector("#btnStrike")?.addEventListener("click", () => {
-  gameState.strikes += 1;
-  if (gameState.strikes >= 3) { logPlay("Strikeout"); nextBatter(); }
-  else renderStatus();
-});
+  /* ── Status button handlers ── */
+  document.querySelector("#btnBall")?.addEventListener("click", () => {
+    gameState.balls += 1;
+    if (gameState.balls >= 4) { logPlay("Walk (BB)"); nextBatter(); }
+    else renderStatus();
+  });
 
-document.querySelector("#btnOut")?.addEventListener("click", addOut);
-document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
-document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
+  document.querySelector("#btnStrike")?.addEventListener("click", () => {
+    gameState.strikes += 1;
+    if (gameState.strikes >= 3) { logPlay("Strikeout"); nextBatter(); }
+    else renderStatus();
+  });
 
-document.querySelector("#prevInning")?.addEventListener("click", () => {
-  if (gameState.inning > 1 || !gameState.isTop) {
-    if (gameState.isTop) { gameState.inning -= 1; gameState.isTop = false; }
-    else gameState.isTop = true;
-    renderStatus();
-  }
-});
+  document.querySelector("#btnOut")?.addEventListener("click", addOut);
+  document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
+  document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
 
-document.querySelector("#nextInning")?.addEventListener("click", () => {
-  if (gameState.isTop) gameState.isTop = false;
-  else { gameState.isTop = true; gameState.inning += 1; }
-  renderStatus();
-});
+  document.querySelector("#prevInning")?.addEventListener("click", () => {
+    if (gameState.inning > 1 || !gameState.isTop) {
+      if (gameState.isTop) { gameState.inning -= 1; gameState.isTop = false; }
+      else gameState.isTop = true;
+      renderStatus();
+    }
+  });
 
-["baseFirst", "baseSecond", "baseThird"].forEach((id, i) => {
-  document.querySelector(`#${id}`)?.addEventListener("click", () => {
-    gameState.bases[i] = !gameState.bases[i];
+  document.querySelector("#nextInning")?.addEventListener("click", () => {
+    if (gameState.isTop) gameState.isTop = false;
+    else { gameState.isTop = true; gameState.inning += 1; }
     renderStatus();
   });
-});
 
-document.querySelector("#btnAddPlay")?.addEventListener("click", () => {
-  const input = document.querySelector("#playInput");
-  const text  = input?.value.trim();
-  if (!text) return;
-  logPlay(text);
-  if (input) input.value = "";
+  ["baseFirst", "baseSecond", "baseThird"].forEach((id, i) => {
+    document.querySelector(`#${id}`)?.addEventListener("click", () => {
+      gameState.bases[i] = !gameState.bases[i];
+      renderStatus();
+    });
+  });
+
+  document.querySelector("#btnAddPlay")?.addEventListener("click", () => {
+    const input = document.querySelector("#playInput");
+    const text  = input?.value.trim();
+    if (!text) return;
+    logPlay(text);
+    if (input) input.value = "";
+    renderStatus();
+  });
+
+  document.querySelector("#playInput")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") document.querySelector("#btnAddPlay")?.click();
+  });
+
+  /* ── Scoreboard: auto-sum runs on cell edit ── */
+  document.querySelectorAll(".scoreboard-table td[contenteditable][data-team]").forEach((td) => {
+    td.addEventListener("input", computeRuns);
+  });
+
+  /* ── Team name inputs sync labels ── */
+  document.querySelector("#awayName")?.addEventListener("input", renderScoreboardLabels);
+  document.querySelector("#homeName")?.addEventListener("input", renderScoreboardLabels);
+
   renderStatus();
-});
-
-document.querySelector("#playInput")?.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") document.querySelector("#btnAddPlay")?.click();
-});
-
-/* ── Scoreboard: auto-sum runs on cell edit ── */
-document.querySelectorAll(".scoreboard-table td[contenteditable][data-team]").forEach((td) => {
-  td.addEventListener("input", computeRuns);
-});
-
-/* ── Team name inputs sync labels ── */
-document.querySelector("#awayName")?.addEventListener("input", renderScoreboardLabels);
-document.querySelector("#homeName")?.addEventListener("input", renderScoreboardLabels);
+}
 
 /* ═══════════════════════════════
    TESTE TAB
@@ -1262,80 +1271,84 @@ function renderTeste() {
   renderTesteLeaderboard();
 }
 
-/* ── Pitch zone (Teste) ── */
-const testePitchWrapper = document.querySelector("#testePitchWrapper");
-const testePitchBox     = document.querySelector("#testePitchBox");
+if (PAGE === "teste") {
+  /* ── Pitch zone (Teste) ── */
+  const testePitchWrapper = document.querySelector("#testePitchWrapper");
+  const testePitchBox     = document.querySelector("#testePitchBox");
 
-if (testePitchWrapper && testePitchBox) {
-  testePitchWrapper.addEventListener("click", (event) => {
-    if (!testeCurrentBatter()) return;
-    const wRect = testePitchWrapper.getBoundingClientRect();
-    const zRect = testePitchBox.getBoundingClientRect();
-    const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
-    const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
-    const isStrike = event.clientX >= zRect.left && event.clientX <= zRect.right
-                  && event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
-    testeAddPitch(x, y, isStrike);
-  });
-}
-
-/* ── Buttons ── */
-document.querySelector("#testeHit")?.addEventListener("click", () => {
-  if (testeCurrentBatter()) testeCompleteAB("hit");
-});
-document.querySelector("#testeOut")?.addEventListener("click", () => {
-  if (testeCurrentBatter()) testeCompleteAB("out");
-});
-document.querySelector("#testeBall")?.addEventListener("click", () => {
-  const b = testeCurrentBatter();
-  if (!b) return;
-  b.currentPitches.push({ x: 10, y: 50, isStrike: false });
-  if (testeCurrentBalls() >= 4) { testeCompleteAB("bb"); return; }
-  renderTeste();
-});
-document.querySelector("#testeStrike")?.addEventListener("click", () => {
-  const b = testeCurrentBatter();
-  if (!b) return;
-  b.currentPitches.push({ x: 50, y: 50, isStrike: true });
-  if (testeCurrentStrikes() >= 3) { testeCompleteAB("k"); return; }
-  renderTeste();
-});
-document.querySelector("#testeUndo")?.addEventListener("click", () => {
-  const b = testeCurrentBatter();
-  if (!b) return;
-  if (b.currentPitches.length > 0) {
-    b.currentPitches.pop();
-  } else if (b.completedABs.length > 0) {
-    b.completedABs.pop();
+  if (testePitchWrapper && testePitchBox) {
+    testePitchWrapper.addEventListener("click", (event) => {
+      if (!testeCurrentBatter()) return;
+      const wRect = testePitchWrapper.getBoundingClientRect();
+      const zRect = testePitchBox.getBoundingClientRect();
+      const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
+      const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
+      const isStrike = event.clientX >= zRect.left && event.clientX <= zRect.right
+                    && event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
+      testeAddPitch(x, y, isStrike);
+    });
   }
-  renderTeste();
-});
-document.querySelector("#testeNextBatter")?.addEventListener("click", () => {
-  if (testeState.batters.length === 0) return;
-  testeState.currentIndex = (testeState.currentIndex + 1) % testeState.batters.length;
-  renderTeste();
-});
 
-/* ── Add batter ── */
-function testeAddBatter() {
-  const input = document.querySelector("#testeBatterInput");
-  const name  = input?.value.trim();
-  if (!name) return;
-  testeState.batters.push({ id: testeState.nextId++, name, completedABs: [], currentPitches: [] });
-  testeState.currentIndex = testeState.batters.length - 1;
-  if (input) input.value = "";
+  /* ── Buttons ── */
+  document.querySelector("#testeHit")?.addEventListener("click", () => {
+    if (testeCurrentBatter()) testeCompleteAB("hit");
+  });
+  document.querySelector("#testeOut")?.addEventListener("click", () => {
+    if (testeCurrentBatter()) testeCompleteAB("out");
+  });
+  document.querySelector("#testeBall")?.addEventListener("click", () => {
+    const b = testeCurrentBatter();
+    if (!b) return;
+    b.currentPitches.push({ x: 10, y: 50, isStrike: false });
+    if (testeCurrentBalls() >= 4) { testeCompleteAB("bb"); return; }
+    renderTeste();
+  });
+  document.querySelector("#testeStrike")?.addEventListener("click", () => {
+    const b = testeCurrentBatter();
+    if (!b) return;
+    b.currentPitches.push({ x: 50, y: 50, isStrike: true });
+    if (testeCurrentStrikes() >= 3) { testeCompleteAB("k"); return; }
+    renderTeste();
+  });
+  document.querySelector("#testeUndo")?.addEventListener("click", () => {
+    const b = testeCurrentBatter();
+    if (!b) return;
+    if (b.currentPitches.length > 0) {
+      b.currentPitches.pop();
+    } else if (b.completedABs.length > 0) {
+      b.completedABs.pop();
+    }
+    renderTeste();
+  });
+  document.querySelector("#testeNextBatter")?.addEventListener("click", () => {
+    if (testeState.batters.length === 0) return;
+    testeState.currentIndex = (testeState.currentIndex + 1) % testeState.batters.length;
+    renderTeste();
+  });
+
+  /* ── Add batter ── */
+  function testeAddBatter() {
+    const input = document.querySelector("#testeBatterInput");
+    const name  = input?.value.trim();
+    if (!name) return;
+    testeState.batters.push({ id: testeState.nextId++, name, completedABs: [], currentPitches: [] });
+    testeState.currentIndex = testeState.batters.length - 1;
+    if (input) input.value = "";
+    renderTeste();
+  }
+
+  document.querySelector("#testeAddBatter")?.addEventListener("click", testeAddBatter);
+  document.querySelector("#testeBatterInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") testeAddBatter();
+  });
+
+  document.querySelector("#testeResetAll")?.addEventListener("click", () => {
+    testeState.batters = [];
+    testeState.currentIndex = 0;
+    const pitcherInput = document.querySelector("#testePitcherInput");
+    if (pitcherInput) pitcherInput.value = "";
+    renderTeste();
+  });
+
   renderTeste();
 }
-
-document.querySelector("#testeAddBatter")?.addEventListener("click", testeAddBatter);
-document.querySelector("#testeBatterInput")?.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") testeAddBatter();
-});
-
-document.querySelector("#testeResetAll")?.addEventListener("click", () => {
-  testeState.batters = [];
-  testeState.currentIndex = 0;
-  const pitcherInput = document.querySelector("#testePitcherInput");
-  if (pitcherInput) pitcherInput.value = "";
-  renderTeste();
-});

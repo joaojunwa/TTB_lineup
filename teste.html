@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR" data-page="teste">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Teste — TTB Lineup</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Controles do teste">
+        <div>
+          <p class="eyebrow">Baseball Lineup</p>
+          <h1>Treino</h1>
+        </div>
+
+        <div class="toolbar-center">
+          <nav class="tab-nav" aria-label="Abas">
+            <a class="tab-btn" href="index.html">Lineup</a>
+            <a class="tab-btn" href="status.html">Status</a>
+            <a class="tab-btn tab-btn-teste is-active" href="teste.html">Teste</a>
+          </nav>
+        </div>
+
+        <div class="toolbar-actions"></div>
+      </section>
+
+      <section id="testeTab" class="teste-view">
+
+        <div class="teste-setup">
+          <div class="teste-setup-fields">
+            <div class="teste-field-group">
+              <label class="teste-label" for="testePitcherInput">Pitcher</label>
+              <input id="testePitcherInput" class="teste-input" placeholder="Nome do pitcher..." />
+            </div>
+            <div class="teste-field-group" style="flex:1">
+              <label class="teste-label" for="testeBatterInput">Adicionar rebatedor</label>
+              <div class="teste-add-row">
+                <input id="testeBatterInput" class="teste-input" placeholder="Nome do rebatedor..." />
+                <button id="testeAddBatter" class="ctrl-btn">+ Adicionar</button>
+              </div>
+            </div>
+          </div>
+          <button id="testeResetAll" class="ctrl-btn ctrl-reset">Resetar tudo</button>
+        </div>
+
+        <div class="teste-main">
+
+          <!-- Batter list -->
+          <div class="teste-batters-panel">
+            <h3 class="teste-section-title">Rebatedores</h3>
+            <ul id="testeBatterList" class="teste-batter-list"></ul>
+          </div>
+
+          <!-- At-bat controls + strike zone -->
+          <div class="teste-center-panel">
+            <div class="teste-atbat-header">
+              <span id="testeCurrentName" class="teste-current-name">— selecione um rebatedor —</span>
+              <span id="testeCurrentCount" class="teste-current-count">B: 0 · S: 0</span>
+            </div>
+
+            <div class="teste-atbat-actions">
+              <button id="testeHit"        class="atbat-btn atbat-hit">Hit ✔</button>
+              <button id="testeOut"        class="atbat-btn atbat-out">Out</button>
+              <button id="testeBall"       class="atbat-btn atbat-ball">Ball</button>
+              <button id="testeStrike"     class="atbat-btn atbat-strike">Strike</button>
+              <button id="testeUndo"       class="atbat-btn atbat-undo">↩ Desfazer</button>
+              <button id="testeNextBatter" class="atbat-btn atbat-next">Próx. ›</button>
+            </div>
+
+            <div class="pitch-area" style="margin-top:8px">
+              <div class="pitch-area-label">Zona — clique para registrar arremesso</div>
+              <div class="pitch-zone-wrapper" id="testePitchWrapper">
+                <div class="pitch-zone-box" id="testePitchBox"></div>
+                <div class="pitch-dots" id="testePitchDots"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live stats table -->
+          <div class="teste-stats-panel">
+            <h3 class="teste-section-title">Estatísticas ao vivo</h3>
+            <table class="teste-stats-table">
+              <thead>
+                <tr>
+                  <th>Rebatedor</th>
+                  <th>AB</th>
+                  <th>H</th>
+                  <th>BB</th>
+                  <th>K</th>
+                  <th>AVG</th>
+                </tr>
+              </thead>
+              <tbody id="testeStatsBody"></tbody>
+            </table>
+
+            <div id="testeLeaderboard" class="teste-leaderboard" hidden>
+              <h3 class="teste-section-title" style="margin-top:16px">🏆 Melhor AVG</h3>
+              <div id="testeLeaderboardContent"></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+    <script src="lineup-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>

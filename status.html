@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="pt-BR" data-page="status">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Status do Jogo — TTB Lineup</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Controles do status">
+        <div>
+          <p class="eyebrow">Baseball Lineup</p>
+          <h1>Status do jogo</h1>
+        </div>
+
+        <div class="toolbar-center">
+          <nav class="tab-nav" aria-label="Abas">
+            <a class="tab-btn" href="index.html">Lineup</a>
+            <a class="tab-btn is-active" href="status.html">Status</a>
+            <a class="tab-btn tab-btn-teste" href="teste.html">Teste</a>
+          </nav>
+        </div>
+
+        <div class="toolbar-actions"></div>
+      </section>
+
+      <section id="statusTab" class="status-view">
+
+        <!-- Scoreboard -->
+        <div class="status-scoreboard">
+          <div class="scoreboard-teams">
+            <input class="team-name-input" id="awayName" value="Visitante" aria-label="Nome do time visitante" />
+            <input class="team-name-input" id="homeName" value="TTB" aria-label="Nome do time da casa" />
+          </div>
+          <div class="scoreboard-wrap">
+            <table class="scoreboard-table">
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+                  <th>6</th><th>7</th><th>8</th><th>9</th>
+                  <th class="score-rhe">R</th>
+                  <th class="score-rhe">H</th>
+                  <th class="score-rhe">E</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="awayScoreRow">
+                  <td class="team-label" id="awayLabel">Visitante</td>
+                  <td contenteditable="true" data-team="away" data-inning="1"></td>
+                  <td contenteditable="true" data-team="away" data-inning="2"></td>
+                  <td contenteditable="true" data-team="away" data-inning="3"></td>
+                  <td contenteditable="true" data-team="away" data-inning="4"></td>
+                  <td contenteditable="true" data-team="away" data-inning="5"></td>
+                  <td contenteditable="true" data-team="away" data-inning="6"></td>
+                  <td contenteditable="true" data-team="away" data-inning="7"></td>
+                  <td contenteditable="true" data-team="away" data-inning="8"></td>
+                  <td contenteditable="true" data-team="away" data-inning="9"></td>
+                  <td class="score-rhe" id="awayRuns">0</td>
+                  <td class="score-rhe" contenteditable="true" id="awayHits">0</td>
+                  <td class="score-rhe" contenteditable="true" id="awayErrors">0</td>
+                </tr>
+                <tr id="homeScoreRow">
+                  <td class="team-label" id="homeLabel">TTB</td>
+                  <td contenteditable="true" data-team="home" data-inning="1"></td>
+                  <td contenteditable="true" data-team="home" data-inning="2"></td>
+                  <td contenteditable="true" data-team="home" data-inning="3"></td>
+                  <td contenteditable="true" data-team="home" data-inning="4"></td>
+                  <td contenteditable="true" data-team="home" data-inning="5"></td>
+                  <td contenteditable="true" data-team="home" data-inning="6"></td>
+                  <td contenteditable="true" data-team="home" data-inning="7"></td>
+                  <td contenteditable="true" data-team="home" data-inning="8"></td>
+                  <td contenteditable="true" data-team="home" data-inning="9"></td>
+                  <td class="score-rhe" id="homeRuns">0</td>
+                  <td class="score-rhe" contenteditable="true" id="homeHits">0</td>
+                  <td class="score-rhe" contenteditable="true" id="homeErrors">0</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Situation + Zone + Batting Order -->
+        <div class="status-main">
+
+          <!-- Left: Situation -->
+          <div class="status-situation">
+            <div class="inning-display">
+              <button id="prevInning" class="inning-btn" aria-label="Inning anterior">‹</button>
+              <div class="inning-info">
+                <span id="inningHalf" class="inning-half">▲</span>
+                <span id="inningNumber" class="inning-number">1</span>
+                <small>Inning</small>
+              </div>
+              <button id="nextInning" class="inning-btn" aria-label="Próximo inning">›</button>
+            </div>
+
+            <!-- Bases diamond -->
+            <div class="bases-diamond" aria-label="Bases">
+              <button class="base-btn base-second" id="baseSecond" aria-label="Segunda base" aria-pressed="false"></button>
+              <button class="base-btn base-third"  id="baseThird"  aria-label="Terceira base" aria-pressed="false"></button>
+              <button class="base-btn base-first"  id="baseFirst"  aria-label="Primeira base" aria-pressed="false"></button>
+              <div class="base-btn base-home-marker"></div>
+            </div>
+
+            <!-- Count -->
+            <div class="count-display">
+              <div class="count-row">
+                <span class="count-label">B</span>
+                <span class="count-dots" id="ballDots"></span>
+              </div>
+              <div class="count-row">
+                <span class="count-label">S</span>
+                <span class="count-dots" id="strikeDots"></span>
+              </div>
+              <div class="count-row">
+                <span class="count-label">O</span>
+                <span class="count-dots" id="outDots"></span>
+              </div>
+            </div>
+
+            <!-- Pitch zone -->
+            <div class="pitch-area" aria-label="Zona de strike — clique para registrar arremesso">
+              <div class="pitch-area-label">Zona de Strike</div>
+              <div class="pitch-zone-wrapper" id="pitchZoneWrapper">
+                <div class="pitch-zone-box" id="pitchZoneBox"></div>
+                <div class="pitch-dots" id="pitchDots"></div>
+              </div>
+            </div>
+
+            <!-- Controls -->
+            <div class="situation-controls">
+              <button id="btnBall"       class="ctrl-btn ctrl-ball">Ball</button>
+              <button id="btnStrike"     class="ctrl-btn ctrl-strike">Strike</button>
+              <button id="btnOut"        class="ctrl-btn ctrl-out">Out</button>
+              <button id="btnNextBatter" class="ctrl-btn ctrl-next">Próx. rebatedor</button>
+              <button id="btnResetCount" class="ctrl-btn ctrl-reset">Resetar count</button>
+            </div>
+          </div>
+
+          <!-- Right: Batting Order -->
+          <div class="status-batting">
+            <h3>Ordem de Rebatida</h3>
+            <ol id="statusBattingOrder" class="status-batting-list"></ol>
+          </div>
+
+        </div>
+
+        <!-- Play Log -->
+        <div class="status-log">
+          <h3>Registro de Jogadas</h3>
+          <div class="log-input-row">
+            <input id="playInput" class="play-input" type="text" placeholder="Descreva a jogada (ex: Mikio - Single ao centro)..." />
+            <button id="btnAddPlay" class="ctrl-btn">Registrar</button>
+          </div>
+          <ol id="playLog" class="play-log-list" reversed></ol>
+        </div>
+
+      </section>
+    </main>
+
+    <script src="lineup-data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
