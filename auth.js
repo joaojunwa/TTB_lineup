@@ -310,7 +310,7 @@ function mountAdminProfileManager() {
         </label>
         <label>
           <span>Data de aniversario</span>
-          <input id="newAdminBirthday" type="text" inputmode="numeric" placeholder="dd/mm/aaaa" autocomplete="bday" />
+          <input id="newAdminBirthday" type="date" autocomplete="bday" />
         </label>
         <p id="adminProfilesError" class="admin-profiles-error"></p>
         <button id="createAdminProfile" type="button" class="ctrl-btn ctrl-salvar">Criar admin</button>
