@@ -23,10 +23,22 @@
         </div>
 
         <div class="toolbar-actions">
-          <button id="drawerToggle" type="button" aria-controls="lineupPanel" aria-expanded="false">Jogadores</button>
-          <button id="clearField" type="button">Limpar</button>
-          <button id="resetLineup" type="button">Recarregar</button>
-          <button id="exportLineup" type="button">Exportar</button>
+          <button id="drawerToggle" type="button" aria-controls="lineupPanel" aria-expanded="false">
+            <span class="label-full">Jogadores</span>
+            <span class="label-short">Elenco</span>
+          </button>
+          <button id="clearField" type="button">
+            <span class="label-full">Limpar</span>
+            <span class="label-short">Limpar</span>
+          </button>
+          <button id="resetLineup" type="button">
+            <span class="label-full">Recarregar</span>
+            <span class="label-short">Reset</span>
+          </button>
+          <button id="exportLineup" type="button">
+            <span class="label-full">Exportar</span>
+            <span class="label-short">Export.</span>
+          </button>
         </div>
       </section>
 
@@ -57,6 +69,7 @@
           <div class="panel-heading">
             <h2>Jogadores</h2>
             <span id="rosterCount">0 players</span>
+            <button id="drawerClose" class="panel-close" type="button" aria-controls="lineupPanel">Fechar</button>
           </div>
 
           <div class="dh-mode" aria-label="Escolher modo de lineup">

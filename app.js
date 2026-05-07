@@ -57,6 +57,7 @@ const selectedPlayer = document.querySelector("#selectedPlayer");
 const positionButtons = document.querySelector("#positionButtons");
 const playerRoster = document.querySelector("#playerRoster");
 const drawerToggle = document.querySelector("#drawerToggle");
+const drawerClose = document.querySelector("#drawerClose");
 const lineupPanel = document.querySelector("#lineupPanel");
 const noDhMode = document.querySelector("#noDhMode");
 const dhMode = document.querySelector("#dhMode");
@@ -592,7 +593,7 @@ function getRosterSections() {
   const assignedIds = new Set(Object.values(assignments).filter(Boolean));
   const lineupCards = roster
     .filter((player) => assignedIds.has(player.id) || lineupPending.has(player.id))
-    .concat(dhPlayer && dhPlayer.group !== "Lineup" ? [dhPlayer] : [])
+    .concat(dhPlayer ? [dhPlayer] : [])
     .filter((player, index, list) => list.findIndex((item) => item.id === player.id) === index)
     .sort((first, second) => getLineupSortOrder(first) - getLineupSortOrder(second));
 
@@ -660,9 +661,13 @@ function getActiveBatterIds() {
     return batterIds;
   }
 
-  return batterIds
-    .filter((playerId) => playerId !== assignments.P)
-    .concat(dhAssignment);
+  return [
+    ...new Set(
+      batterIds
+        .filter((playerId) => playerId !== assignments.P)
+        .concat(dhAssignment),
+    ),
+  ];
 }
 
 function renderOrderSelect(player) {
@@ -770,6 +775,11 @@ function render() {
   saveLineupState();
 }
 
+function setLineupPanelCollapsed(collapsed) {
+  lineupPanel.classList.toggle("is-collapsed", collapsed);
+  drawerToggle.setAttribute("aria-expanded", String(!collapsed));
+}
+
 if (PAGE === "lineup") {
   clearButton.addEventListener("click", () => {
     assignments = buildEmptyAssignments();
@@ -789,9 +799,10 @@ if (PAGE === "lineup") {
   });
 
   drawerToggle.addEventListener("click", () => {
-    const collapsed = lineupPanel.classList.toggle("is-collapsed");
-    drawerToggle.setAttribute("aria-expanded", String(!collapsed));
+    setLineupPanelCollapsed(!lineupPanel.classList.contains("is-collapsed"));
   });
+
+  drawerClose?.addEventListener("click", () => setLineupPanelCollapsed(true));
 
   noDhMode.addEventListener("click", () => {
     dhEnabled = false;
@@ -836,15 +847,79 @@ const gameState = {
   strikes: 0,
   bases: [false, false, false],
   currentBatterIndex: 0,
+  batterIndexes: { away: 0, home: 0 },
   plays: [],
   currentPitches: [],
+  playerStats: {},
 };
+
+const OPPONENT_LINEUP_KEY = "ttb_opponent_lineup";
+let activeStatusLineupTab = "home";
+let opponentLineup = buildBlankOpponentLineup();
+
+function buildBlankOpponentLineup() {
+  return Array.from({ length: 9 }, (_, index) => ({
+    order: index + 1,
+    number: "",
+    name: "",
+  }));
+}
+
+function loadOpponentLineup() {
+  try {
+    const raw = localStorage.getItem(OPPONENT_LINEUP_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return;
+    const blank = buildBlankOpponentLineup();
+    opponentLineup = blank.map((row, index) => ({
+      ...row,
+      number: parsed[index]?.number ?? "",
+      name: parsed[index]?.name ?? "",
+    }));
+  } catch (_) {}
+}
+
+function saveOpponentLineup() {
+  try {
+    localStorage.setItem(OPPONENT_LINEUP_KEY, JSON.stringify(opponentLineup));
+  } catch (_) {}
+}
 
 function getStatusBatterList() {
   return getActiveBatterIds()
     .map((id) => getPlayer(id))
     .filter(Boolean)
     .sort((a, b) => (battingOrders[a.id] || 99) - (battingOrders[b.id] || 99));
+}
+
+function getCurrentTeamBatterIndex(team = currentBattingTeam()) {
+  return gameState.batterIndexes?.[team] ?? 0;
+}
+
+function advanceCurrentTeamBatter() {
+  const team = currentBattingTeam();
+  gameState.batterIndexes[team] = getCurrentTeamBatterIndex(team) + 1;
+  if (team === "home") {
+    gameState.currentBatterIndex = gameState.batterIndexes.home;
+  }
+}
+
+function getCurrentBatterLabel() {
+  const team = currentBattingTeam();
+
+  if (team === "away") {
+    const row = opponentLineup[getCurrentTeamBatterIndex("away") % opponentLineup.length];
+    if (!row) return "";
+    if (row.name && row.number) return `#${row.number} ${row.name}`;
+    if (row.name) return row.name;
+    if (row.number) return `#${row.number}`;
+    return `Adversario ${row.order}`;
+  }
+
+  const batters = getStatusBatterList();
+  const current = batters[getCurrentTeamBatterIndex("home") % Math.max(batters.length, 1)];
+  return current?.name ?? "";
 }
 
 function renderCountDots(containerId, filled, total, outStyle) {
@@ -861,32 +936,134 @@ function renderPitchDots() {
   if (!dots) return;
   dots.innerHTML = gameState.currentPitches
     .map(
-      ({ x, y, isStrike }) =>
-        `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"></span>`,
+      ({ x, y, isStrike, zone }, i) =>
+        `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"${zone ? ` title="Zona ${zone}"` : ""}><em>${i + 1}</em></span>`,
     )
     .join("");
 }
 
+function getPitchZoneResult(event, wrapper, zoneBox) {
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const zoneRect = zoneBox.getBoundingClientRect();
+  const rawX = ((event.clientX - wrapperRect.left) / wrapperRect.width) * 100;
+  const rawY = ((event.clientY - wrapperRect.top) / wrapperRect.height) * 100;
+  const x = Math.max(0, Math.min(100, rawX));
+  const y = Math.max(0, Math.min(100, rawY));
+
+  const insideX = event.clientX >= zoneRect.left && event.clientX <= zoneRect.right;
+  const insideY = event.clientY >= zoneRect.top && event.clientY <= zoneRect.bottom;
+  const isStrike = insideX && insideY;
+  let zone = null;
+
+  if (isStrike) {
+    const zoneX = ((event.clientX - zoneRect.left) / zoneRect.width) * 100;
+    const zoneY = ((event.clientY - zoneRect.top) / zoneRect.height) * 100;
+    const column = Math.min(2, Math.max(0, Math.floor(zoneX / 33.3334)));
+    const row = Math.min(2, Math.max(0, Math.floor(zoneY / 33.3334)));
+    zone = row * 3 + column + 1;
+  }
+
+  return { x, y, isStrike, zone };
+}
+
+function bindPitchZone(wrapper, zoneBox, onPitch) {
+  if (!wrapper || !zoneBox) return;
+  wrapper.addEventListener("pointerdown", (event) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    onPitch(getPitchZoneResult(event, wrapper, zoneBox), event);
+  });
+}
+
 function renderStatusBattingOrder() {
-  const list = document.querySelector("#statusBattingOrder");
-  if (!list) return;
+  const container = document.querySelector("#statusBattingOrder");
+  if (!container) return;
   const batters = getStatusBatterList();
   if (batters.length === 0) {
-    list.innerHTML = `<li style="color:var(--text-muted);font-size:0.82rem;padding:8px">Monte o lineup na aba Lineup primeiro.</li>`;
+    container.innerHTML = `<p style="color:var(--text-muted);font-size:0.8rem;padding:10px">Monte o lineup na aba Lineup primeiro.</p>`;
     return;
   }
-  const current = gameState.currentBatterIndex % batters.length;
-  list.innerHTML = batters
-    .map((player, i) => {
-      const pos = getAssignedPosition(player.id) || "—";
-      const isCurrent = i === current;
-      return `<li class="status-batter-item${isCurrent ? " is-current" : ""}">
-        <span class="status-batter-num">${i + 1}</span>
-        <span>${escapeHtml(player.name)}</span>
-        <span class="status-batter-pos">${escapeHtml(pos)}</span>
-      </li>`;
-    })
+
+  const current = getCurrentTeamBatterIndex("home") % batters.length;
+  const totals = { ab: 0, h: 0, bb: 0, k: 0 };
+
+  const rows = batters.map((player, i) => {
+    const isCurrent = i === current;
+    const pos = getAssignedPosition(player.id) || "—";
+    const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0 };
+    totals.ab += s.ab; totals.h += s.h; totals.bb += s.bb; totals.k += s.k;
+    const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
+    return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
+      <td class="gd-stat-num">${i + 1}</td>
+      <td class="gd-stat-name">${escapeHtml(player.name)}<span class="gd-stat-pos"> ${escapeHtml(pos)}</span></td>
+      <td>${s.ab || 0}</td>
+      <td>${s.h  || 0}</td>
+      <td>${s.bb || 0}</td>
+      <td>${s.k  || 0}</td>
+      <td class="gd-stat-avg">${avg}</td>
+    </tr>`;
+  }).join("");
+
+  const totalAvg = totals.ab > 0
+    ? "." + String(Math.round((totals.h / totals.ab) * 1000)).padStart(3, "0")
+    : "—";
+
+  container.innerHTML = `
+    <table class="gd-stats-table">
+      <thead>
+        <tr>
+          <th colspan="2" class="gd-stats-head-team">Nosso Time</th>
+          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="gd-stat-totals">
+          <td colspan="2">Totais</td>
+          <td>${totals.ab}</td><td>${totals.h}</td>
+          <td>${totals.bb}</td><td>${totals.k}</td>
+          <td class="gd-stat-avg">${totalAvg}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+}
+
+function renderOpponentLineup() {
+  const container = document.querySelector("#opponentLineup");
+  if (!container) return;
+  const current = getCurrentTeamBatterIndex("away") % opponentLineup.length;
+  container.innerHTML = opponentLineup
+    .map((row, index) => `
+      <label class="opponent-row${index === current ? " is-current" : ""}">
+        <span class="opponent-order">${row.order}.</span>
+        <input class="opponent-input" data-opponent-index="${index}" data-opponent-field="number" inputmode="numeric" placeholder="#" value="${escapeHtml(row.number)}" aria-label="Numero do jogador ${row.order} do adversario" />
+        <input class="opponent-input" data-opponent-index="${index}" data-opponent-field="name" placeholder="Jogador" value="${escapeHtml(row.name)}" aria-label="Nome do jogador ${row.order} do adversario" />
+      </label>
+    `)
     .join("");
+
+  container.querySelectorAll(".opponent-input").forEach((input) => {
+    input.addEventListener("input", (event) => {
+      const el = event.currentTarget;
+      const row = opponentLineup[Number(el.dataset.opponentIndex)];
+      if (!row) return;
+      row[el.dataset.opponentField] = el.value;
+      saveOpponentLineup();
+    });
+  });
+}
+
+function renderStatusLineupTabs() {
+  const homeButton = document.querySelector("#homeLineupTab");
+  const awayButton = document.querySelector("#awayLineupTab");
+  const homePanel = document.querySelector("#homeLineupPanel");
+  const awayPanel = document.querySelector("#awayLineupPanel");
+
+  homeButton?.classList.toggle("is-active", activeStatusLineupTab === "home");
+  awayButton?.classList.toggle("is-active", activeStatusLineupTab === "away");
+  if (homePanel) homePanel.hidden = activeStatusLineupTab !== "home";
+  if (awayPanel) awayPanel.hidden = activeStatusLineupTab !== "away";
 }
 
 function renderScoreboardLabels() {
@@ -908,7 +1085,79 @@ function computeRuns() {
     });
     const runsEl = document.querySelector(`#${team}Runs`);
     if (runsEl) runsEl.textContent = total;
+    const bigEl = document.querySelector(`#${team}RunsBig`);
+    if (bigEl) bigEl.textContent = total;
   });
+}
+
+function getCellNumber(cell) {
+  const value = parseInt(cell?.textContent.trim() || "0", 10);
+  return Number.isNaN(value) ? 0 : value;
+}
+
+function currentBattingTeam() {
+  return gameState.isTop ? "away" : "home";
+}
+
+function addCurrentTeamRuns(amount) {
+  if (!amount) return;
+  const cell = document.querySelector(
+    `td[data-team="${currentBattingTeam()}"][data-inning="${gameState.inning}"]`,
+  );
+  if (!cell) return;
+  cell.textContent = getCellNumber(cell) + amount;
+  computeRuns();
+}
+
+function addCurrentTeamHit() {
+  const hitsCell = document.querySelector(`#${currentBattingTeam()}Hits`);
+  if (!hitsCell) return;
+  hitsCell.textContent = getCellNumber(hitsCell) + 1;
+}
+
+function advanceBatterByWalk() {
+  let [first, second, third] = gameState.bases;
+  const forcedRun = first && second && third;
+  const runs = forcedRun ? 1 : 0;
+
+  if (first) {
+    if (second) {
+      third = true;
+    }
+    second = true;
+  }
+
+  first = true;
+  gameState.bases = [first, second, third];
+  addCurrentTeamRuns(runs);
+  return runs;
+}
+
+function recordBatterStat(field, amount = 1) {
+  if (currentBattingTeam() !== "home") return;
+  const batters = getStatusBatterList();
+  if (!batters.length) return;
+  const batter = batters[getCurrentTeamBatterIndex("home") % batters.length];
+  if (!batter) return;
+  if (!gameState.playerStats[batter.id]) {
+    gameState.playerStats[batter.id] = { ab: 0, h: 0, bb: 0, k: 0 };
+  }
+  gameState.playerStats[batter.id][field] = (gameState.playerStats[batter.id][field] || 0) + amount;
+}
+
+function completeWalk() {
+  const runs = advanceBatterByWalk();
+  recordBatterStat("bb");
+  logPlay(runs ? "Walk (BB) - entrou 1 corrida" : "Walk (BB)");
+  nextBatter();
+}
+
+function completeHit() {
+  addCurrentTeamHit();
+  recordBatterStat("ab");
+  recordBatterStat("h");
+  logPlay("Hit");
+  nextBatter();
 }
 
 function highlightCurrentInning() {
@@ -940,8 +1189,13 @@ function renderStatus() {
 
   renderPitchDots();
   renderStatusBattingOrder();
+  renderOpponentLineup();
+  renderStatusLineupTabs();
   renderScoreboardLabels();
   highlightCurrentInning();
+  const gdBatter = document.querySelector("#gdCurrentBatter");
+  if (gdBatter) gdBatter.textContent = getCurrentBatterLabel() || "— sem rebatedor —";
+  if (typeof autosaveJogo === "function") autosaveJogo();
 }
 
 function resetCount() {
@@ -952,11 +1206,12 @@ function resetCount() {
 }
 
 function nextBatter() {
-  gameState.currentBatterIndex += 1;
+  advanceCurrentTeamBatter();
   resetCount();
 }
 
 function addOut() {
+  recordBatterStat("ab");
   gameState.outs += 1;
   logPlay(`Out #${gameState.outs}`);
   if (gameState.outs >= 3) {
@@ -964,30 +1219,47 @@ function addOut() {
     gameState.isTop = !gameState.isTop;
     if (!gameState.isTop) gameState.inning += 1;
     gameState.bases = [false, false, false];
-    logPlay(`— Fim do ${gameState.isTop ? "▲" : "▼"} ${gameState.inning}º inning —`);
+    logSystemPlay(`Fim do ${gameState.isTop ? "topo" : "baixo"} ${gameState.inning} inning`);
   }
   resetCount();
 }
 
 function logPlay(text) {
-  const batters   = getStatusBatterList();
-  const current   = batters[gameState.currentBatterIndex % Math.max(batters.length, 1)];
-  const meta      = `${gameState.isTop ? "▲" : "▼"}${gameState.inning}`;
-  gameState.plays.unshift({ meta, text: current ? `${current.name} — ${text}` : text });
+  const current = getCurrentBatterLabel();
+  const meta = `${gameState.isTop ? "▲" : "▼"}${gameState.inning}`;
+  gameState.plays.unshift({ meta, text: current ? `${current} - ${text}` : text });
   renderPlayLog();
+}
+
+function logSystemPlay(text) {
+  const meta = `${gameState.isTop ? "▲" : "▼"}${gameState.inning}`;
+  gameState.plays.unshift({ meta, text });
+  renderPlayLog();
+}
+
+function getPlayBadge(text) {
+  const t = text.toLowerCase();
+  if (t.includes("strikeout"))               return ["K",    "k"];
+  if (t.includes("walk") || t.includes("(bb)")) return ["BB", "bb"];
+  if (t.includes("home run"))                return ["HR",   "hr"];
+  if (t.includes(" hit") || text === "Hit")  return ["Hit",  "hit"];
+  if (t.includes("out"))                     return ["Out",  "out"];
+  return null;
 }
 
 function renderPlayLog() {
   const list = document.querySelector("#playLog");
   if (!list) return;
   list.innerHTML = gameState.plays
-    .map(
-      ({ meta, text }) =>
-        `<li class="play-log-item">
-          <span class="play-log-meta">${escapeHtml(meta)}</span>
-          <span class="play-log-text">${escapeHtml(text)}</span>
-        </li>`,
-    )
+    .map(({ meta, text }) => {
+      const badge = getPlayBadge(text);
+      const isSys = text.toLowerCase().includes("fim do") || text.toLowerCase().includes("inning");
+      return `<li class="gd-play-item${isSys ? " gd-play-sys" : ""}">
+        <span class="gd-play-meta">${escapeHtml(meta)}</span>
+        ${badge ? `<span class="gd-play-badge gd-badge-${badge[1]}">${escapeHtml(badge[0])}</span>` : ""}
+        <span class="gd-play-text">${escapeHtml(text)}</span>
+      </li>`;
+    })
     .join("");
 }
 
@@ -996,21 +1268,14 @@ const pitchWrapper = document.querySelector("#pitchZoneWrapper");
 const pitchZoneBox = document.querySelector("#pitchZoneBox");
 
 if (pitchWrapper && pitchZoneBox) {
-  pitchWrapper.addEventListener("click", (event) => {
-    const wRect = pitchWrapper.getBoundingClientRect();
-    const zRect = pitchZoneBox.getBoundingClientRect();
-    const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
-    const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
-
-    const insideX = event.clientX >= zRect.left && event.clientX <= zRect.right;
-    const insideY = event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
-    const isStrike = insideX && insideY;
-
-    gameState.currentPitches.push({ x, y, isStrike });
+  bindPitchZone(pitchWrapper, pitchZoneBox, ({ x, y, isStrike, zone }) => {
+    gameState.currentPitches.push({ x, y, isStrike, zone });
 
     if (isStrike) {
       gameState.strikes += 1;
       if (gameState.strikes >= 3) {
+        recordBatterStat("ab");
+        recordBatterStat("k");
         logPlay("Strikeout");
         nextBatter();
         return;
@@ -1018,8 +1283,7 @@ if (pitchWrapper && pitchZoneBox) {
     } else {
       gameState.balls += 1;
       if (gameState.balls >= 4) {
-        logPlay("Walk (BB)");
-        nextBatter();
+        completeWalk();
         return;
       }
     }
@@ -1029,23 +1293,39 @@ if (pitchWrapper && pitchZoneBox) {
 
 if (PAGE === "status") {
   loadLineupState();
+  loadOpponentLineup();
 
   /* ── Status button handlers ── */
   document.querySelector("#btnBall")?.addEventListener("click", () => {
     gameState.balls += 1;
-    if (gameState.balls >= 4) { logPlay("Walk (BB)"); nextBatter(); }
+    if (gameState.balls >= 4) { completeWalk(); }
     else renderStatus();
   });
 
   document.querySelector("#btnStrike")?.addEventListener("click", () => {
     gameState.strikes += 1;
-    if (gameState.strikes >= 3) { logPlay("Strikeout"); nextBatter(); }
-    else renderStatus();
+    if (gameState.strikes >= 3) {
+      recordBatterStat("ab");
+      recordBatterStat("k");
+      logPlay("Strikeout");
+      nextBatter();
+    } else renderStatus();
   });
 
   document.querySelector("#btnOut")?.addEventListener("click", addOut);
+  document.querySelector("#btnHit")?.addEventListener("click", completeHit);
   document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
   document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
+
+  document.querySelector("#homeLineupTab")?.addEventListener("click", () => {
+    activeStatusLineupTab = "home";
+    renderStatusLineupTabs();
+  });
+
+  document.querySelector("#awayLineupTab")?.addEventListener("click", () => {
+    activeStatusLineupTab = "away";
+    renderStatusLineupTabs();
+  });
 
   document.querySelector("#prevInning")?.addEventListener("click", () => {
     if (gameState.inning > 1 || !gameState.isTop) {
@@ -1144,10 +1424,10 @@ function testeCompleteAB(result) {
   renderTeste();
 }
 
-function testeAddPitch(x, y, isStrike) {
+function testeAddPitch(x, y, isStrike, zone = null) {
   const b = testeCurrentBatter();
   if (!b) return;
-  b.currentPitches.push({ x, y, isStrike });
+  b.currentPitches.push({ x, y, isStrike, zone });
   const strikes = testeCurrentStrikes();
   const balls   = testeCurrentBalls();
   if (strikes >= 3) { testeCompleteAB("k"); return; }
@@ -1160,8 +1440,8 @@ function renderTestePitchDots() {
   const dots = document.querySelector("#testePitchDots");
   if (!dots) return;
   dots.innerHTML = (b?.currentPitches ?? [])
-    .map(({ x, y, isStrike }) =>
-      `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"></span>`)
+    .map(({ x, y, isStrike, zone }) =>
+      `<span class="pitch-dot ${isStrike ? "is-strike" : "is-ball"}" style="left:${x}%;top:${y}%"${zone ? ` title="Zona ${zone}"` : ""}></span>`)
     .join("");
 }
 
@@ -1277,15 +1557,9 @@ if (PAGE === "teste") {
   const testePitchBox     = document.querySelector("#testePitchBox");
 
   if (testePitchWrapper && testePitchBox) {
-    testePitchWrapper.addEventListener("click", (event) => {
+    bindPitchZone(testePitchWrapper, testePitchBox, ({ x, y, isStrike, zone }) => {
       if (!testeCurrentBatter()) return;
-      const wRect = testePitchWrapper.getBoundingClientRect();
-      const zRect = testePitchBox.getBoundingClientRect();
-      const x = ((event.clientX - wRect.left) / wRect.width)  * 100;
-      const y = ((event.clientY - wRect.top)  / wRect.height) * 100;
-      const isStrike = event.clientX >= zRect.left && event.clientX <= zRect.right
-                    && event.clientY >= zRect.top  && event.clientY <= zRect.bottom;
-      testeAddPitch(x, y, isStrike);
+      testeAddPitch(x, y, isStrike, zone);
     });
   }
 
@@ -1306,7 +1580,7 @@ if (PAGE === "teste") {
   document.querySelector("#testeStrike")?.addEventListener("click", () => {
     const b = testeCurrentBatter();
     if (!b) return;
-    b.currentPitches.push({ x: 50, y: 50, isStrike: true });
+    b.currentPitches.push({ x: 50, y: 50, isStrike: true, zone: 5 });
     if (testeCurrentStrikes() >= 3) { testeCompleteAB("k"); return; }
     renderTeste();
   });

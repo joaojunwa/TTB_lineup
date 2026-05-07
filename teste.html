@@ -41,8 +41,12 @@
               </div>
             </div>
           </div>
-          <button id="testeResetAll" class="ctrl-btn ctrl-reset">Resetar tudo</button>
+          <div class="teste-setup-actions">
+            <button id="testeResetAll" class="ctrl-btn ctrl-reset">Resetar tudo</button>
+            <button id="testeSalvar" class="ctrl-btn ctrl-salvar">Salvar Treino</button>
+          </div>
         </div>
+        <div id="testeToast" class="teste-toast"></div>
 
         <div class="teste-main">
 
@@ -71,7 +75,17 @@
             <div class="pitch-area" style="margin-top:8px">
               <div class="pitch-area-label">Zona — clique para registrar arremesso</div>
               <div class="pitch-zone-wrapper" id="testePitchWrapper">
-                <div class="pitch-zone-box" id="testePitchBox"></div>
+                <div class="pitch-zone-box" id="testePitchBox" aria-hidden="true">
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                </div>
                 <div class="pitch-dots" id="testePitchDots"></div>
               </div>
             </div>
@@ -102,9 +116,15 @@
 
         </div>
       </section>
+
+      <section class="historico-view">
+        <h2 class="historico-title">Histórico de Treinos</h2>
+        <div id="testeHistorico"></div>
+      </section>
     </main>
 
     <script src="lineup-data.js"></script>
     <script src="app.js"></script>
+    <script src="supabase.js"></script>
   </body>
 </html>

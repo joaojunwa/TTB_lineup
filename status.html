@@ -7,160 +7,189 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <main class="app-shell">
-      <section class="toolbar" aria-label="Controles do status">
-        <div>
-          <p class="eyebrow">Baseball Lineup</p>
-          <h1>Status do jogo</h1>
+    <main class="app-shell gd-shell">
+
+      <!-- Compact nav -->
+      <nav class="gd-nav">
+        <span class="gd-nav-brand eyebrow">TTB Baseball</span>
+        <div class="tab-nav" aria-label="Abas">
+          <a class="tab-btn" href="index.html">Lineup</a>
+          <a class="tab-btn is-active" href="status.html">Status</a>
+          <a class="tab-btn tab-btn-teste" href="teste.html">Teste</a>
         </div>
-
-        <div class="toolbar-center">
-          <nav class="tab-nav" aria-label="Abas">
-            <a class="tab-btn" href="index.html">Lineup</a>
-            <a class="tab-btn is-active" href="status.html">Status</a>
-            <a class="tab-btn tab-btn-teste" href="teste.html">Teste</a>
-          </nav>
+        <div class="gd-nav-right">
+          <span id="gdRealtimeStatus" class="gd-realtime-dot gd-rt-connecting" title="Conectando..."></span>
+          <span id="gdRealtimeLabel" class="gd-realtime-label">Conectando...</span>
+          <button id="btnNovoJogo" class="gd-btn-novo-jogo">Novo Jogo</button>
         </div>
+      </nav>
 
-        <div class="toolbar-actions"></div>
-      </section>
+      <section id="statusTab" class="gd-game">
 
-      <section id="statusTab" class="status-view">
-
-        <!-- Scoreboard -->
-        <div class="status-scoreboard">
-          <div class="scoreboard-teams">
-            <input class="team-name-input" id="awayName" value="Visitante" aria-label="Nome do time visitante" />
-            <input class="team-name-input" id="homeName" value="TTB" aria-label="Nome do time da casa" />
+        <!-- Score bar -->
+        <div class="gd-scorebar">
+          <div class="gd-team-block gd-away">
+            <input class="gd-team-name-input" id="awayName" value="Visitante" aria-label="Time visitante" />
+            <span class="gd-big-score" id="awayRunsBig">0</span>
           </div>
-          <div class="scoreboard-wrap">
-            <table class="scoreboard-table">
-              <thead>
-                <tr>
-                  <th>Time</th>
-                  <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
-                  <th>6</th><th>7</th><th>8</th><th>9</th>
-                  <th class="score-rhe">R</th>
-                  <th class="score-rhe">H</th>
-                  <th class="score-rhe">E</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr id="awayScoreRow">
-                  <td class="team-label" id="awayLabel">Visitante</td>
-                  <td contenteditable="true" data-team="away" data-inning="1"></td>
-                  <td contenteditable="true" data-team="away" data-inning="2"></td>
-                  <td contenteditable="true" data-team="away" data-inning="3"></td>
-                  <td contenteditable="true" data-team="away" data-inning="4"></td>
-                  <td contenteditable="true" data-team="away" data-inning="5"></td>
-                  <td contenteditable="true" data-team="away" data-inning="6"></td>
-                  <td contenteditable="true" data-team="away" data-inning="7"></td>
-                  <td contenteditable="true" data-team="away" data-inning="8"></td>
-                  <td contenteditable="true" data-team="away" data-inning="9"></td>
-                  <td class="score-rhe" id="awayRuns">0</td>
-                  <td class="score-rhe" contenteditable="true" id="awayHits">0</td>
-                  <td class="score-rhe" contenteditable="true" id="awayErrors">0</td>
-                </tr>
-                <tr id="homeScoreRow">
-                  <td class="team-label" id="homeLabel">TTB</td>
-                  <td contenteditable="true" data-team="home" data-inning="1"></td>
-                  <td contenteditable="true" data-team="home" data-inning="2"></td>
-                  <td contenteditable="true" data-team="home" data-inning="3"></td>
-                  <td contenteditable="true" data-team="home" data-inning="4"></td>
-                  <td contenteditable="true" data-team="home" data-inning="5"></td>
-                  <td contenteditable="true" data-team="home" data-inning="6"></td>
-                  <td contenteditable="true" data-team="home" data-inning="7"></td>
-                  <td contenteditable="true" data-team="home" data-inning="8"></td>
-                  <td contenteditable="true" data-team="home" data-inning="9"></td>
-                  <td class="score-rhe" id="homeRuns">0</td>
-                  <td class="score-rhe" contenteditable="true" id="homeHits">0</td>
-                  <td class="score-rhe" contenteditable="true" id="homeErrors">0</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="gd-inning-nav">
+            <button id="prevInning" class="gd-inning-btn" aria-label="Inning anterior">‹</button>
+            <div class="gd-inning-display">
+              <span id="inningHalf">▲</span>
+              <span id="inningNumber">1</span>
+              <span class="gd-inning-word">INNING</span>
+            </div>
+            <button id="nextInning" class="gd-inning-btn" aria-label="Próximo inning">›</button>
+          </div>
+          <div class="gd-team-block gd-home">
+            <span class="gd-big-score" id="homeRunsBig">0</span>
+            <input class="gd-team-name-input gd-home-name" id="homeName" value="TTB" aria-label="Time da casa" />
           </div>
         </div>
 
-        <!-- Situation + Zone + Batting Order -->
-        <div class="status-main">
+        <!-- 3 columns -->
+        <div class="gd-columns">
 
-          <!-- Left: Situation -->
-          <div class="status-situation">
-            <div class="inning-display">
-              <button id="prevInning" class="inning-btn" aria-label="Inning anterior">‹</button>
-              <div class="inning-info">
-                <span id="inningHalf" class="inning-half">▲</span>
-                <span id="inningNumber" class="inning-number">1</span>
-                <small>Inning</small>
-              </div>
-              <button id="nextInning" class="inning-btn" aria-label="Próximo inning">›</button>
+          <!-- LEFT: play log -->
+          <aside class="gd-col-left">
+            <div class="gd-col-head">Jogadas</div>
+            <ol id="playLog" class="gd-play-log" reversed></ol>
+            <div class="gd-log-footer">
+              <input id="playInput" class="gd-play-input-el" type="text" placeholder="Descrever jogada..." />
+              <button id="btnAddPlay" class="gd-btn-add">+</button>
+            </div>
+          </aside>
+
+          <!-- CENTER: pitch zone + situation + controls -->
+          <div class="gd-col-center">
+
+            <div class="gd-batter-bar">
+              <span id="gdCurrentBatter">— sem rebatedor —</span>
             </div>
 
-            <!-- Bases diamond -->
-            <div class="bases-diamond" aria-label="Bases">
-              <button class="base-btn base-second" id="baseSecond" aria-label="Segunda base" aria-pressed="false"></button>
-              <button class="base-btn base-third"  id="baseThird"  aria-label="Terceira base" aria-pressed="false"></button>
-              <button class="base-btn base-first"  id="baseFirst"  aria-label="Primeira base" aria-pressed="false"></button>
-              <div class="base-btn base-home-marker"></div>
-            </div>
-
-            <!-- Count -->
-            <div class="count-display">
-              <div class="count-row">
-                <span class="count-label">B</span>
-                <span class="count-dots" id="ballDots"></span>
-              </div>
-              <div class="count-row">
-                <span class="count-label">S</span>
-                <span class="count-dots" id="strikeDots"></span>
-              </div>
-              <div class="count-row">
-                <span class="count-label">O</span>
-                <span class="count-dots" id="outDots"></span>
-              </div>
-            </div>
-
-            <!-- Pitch zone -->
-            <div class="pitch-area" aria-label="Zona de strike — clique para registrar arremesso">
-              <div class="pitch-area-label">Zona de Strike</div>
+            <div class="gd-zone-wrap">
               <div class="pitch-zone-wrapper" id="pitchZoneWrapper">
-                <div class="pitch-zone-box" id="pitchZoneBox"></div>
+                <div class="pitch-zone-box" id="pitchZoneBox" aria-hidden="true">
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                  <span class="pitch-zone-cell"></span>
+                </div>
                 <div class="pitch-dots" id="pitchDots"></div>
               </div>
             </div>
 
-            <!-- Controls -->
-            <div class="situation-controls">
-              <button id="btnBall"       class="ctrl-btn ctrl-ball">Ball</button>
-              <button id="btnStrike"     class="ctrl-btn ctrl-strike">Strike</button>
-              <button id="btnOut"        class="ctrl-btn ctrl-out">Out</button>
-              <button id="btnNextBatter" class="ctrl-btn ctrl-next">Próx. rebatedor</button>
-              <button id="btnResetCount" class="ctrl-btn ctrl-reset">Resetar count</button>
+            <div class="gd-situation">
+              <div class="bases-diamond" aria-label="Bases">
+                <button class="base-btn base-second" id="baseSecond" aria-label="Segunda base" aria-pressed="false"></button>
+                <button class="base-btn base-third"  id="baseThird"  aria-label="Terceira base" aria-pressed="false"></button>
+                <button class="base-btn base-first"  id="baseFirst"  aria-label="Primeira base" aria-pressed="false"></button>
+                <div class="base-btn base-home-marker"></div>
+              </div>
+              <div class="gd-count-block">
+                <div class="gd-count-row">
+                  <span class="gd-count-lbl">B</span>
+                  <span class="count-dots" id="ballDots"></span>
+                </div>
+                <div class="gd-count-row">
+                  <span class="gd-count-lbl">S</span>
+                  <span class="count-dots" id="strikeDots"></span>
+                </div>
+                <div class="gd-count-row">
+                  <span class="gd-count-lbl">O</span>
+                  <span class="count-dots" id="outDots"></span>
+                </div>
+              </div>
             </div>
+
+            <div class="gd-actions">
+              <button id="btnBall"       class="gd-action-btn gd-btn-ball">Ball</button>
+              <button id="btnStrike"     class="gd-action-btn gd-btn-strike">Strike</button>
+              <button id="btnHit"        class="gd-action-btn gd-btn-hit">Hit</button>
+              <button id="btnOut"        class="gd-action-btn gd-btn-out">Out</button>
+              <button id="btnNextBatter" class="gd-action-btn gd-btn-next">Próx. rebatedor ›</button>
+              <button id="btnResetCount" class="gd-action-btn gd-btn-reset">Reset count</button>
+            </div>
+
           </div>
 
-          <!-- Right: Batting Order -->
-          <div class="status-batting">
-            <h3>Ordem de Rebatida</h3>
-            <ol id="statusBattingOrder" class="status-batting-list"></ol>
-          </div>
+          <!-- RIGHT: scoreboard + lineup -->
+          <aside class="gd-col-right">
 
+            <div class="gd-col-head">Placar</div>
+            <div class="gd-scoreboard-wrap">
+              <table class="scoreboard-table gd-score-table">
+                <thead>
+                  <tr>
+                    <th></th>
+                    <th>1</th><th>2</th><th>3</th><th>4</th><th>5</th>
+                    <th>6</th><th>7</th><th>8</th><th>9</th>
+                    <th class="score-rhe">R</th>
+                    <th class="score-rhe">H</th>
+                    <th class="score-rhe">E</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr id="awayScoreRow">
+                    <td class="team-label" id="awayLabel">Visitante</td>
+                    <td contenteditable="true" data-team="away" data-inning="1"></td>
+                    <td contenteditable="true" data-team="away" data-inning="2"></td>
+                    <td contenteditable="true" data-team="away" data-inning="3"></td>
+                    <td contenteditable="true" data-team="away" data-inning="4"></td>
+                    <td contenteditable="true" data-team="away" data-inning="5"></td>
+                    <td contenteditable="true" data-team="away" data-inning="6"></td>
+                    <td contenteditable="true" data-team="away" data-inning="7"></td>
+                    <td contenteditable="true" data-team="away" data-inning="8"></td>
+                    <td contenteditable="true" data-team="away" data-inning="9"></td>
+                    <td class="score-rhe" id="awayRuns">0</td>
+                    <td class="score-rhe" contenteditable="true" id="awayHits">0</td>
+                    <td class="score-rhe" contenteditable="true" id="awayErrors">0</td>
+                  </tr>
+                  <tr id="homeScoreRow">
+                    <td class="team-label" id="homeLabel">TTB</td>
+                    <td contenteditable="true" data-team="home" data-inning="1"></td>
+                    <td contenteditable="true" data-team="home" data-inning="2"></td>
+                    <td contenteditable="true" data-team="home" data-inning="3"></td>
+                    <td contenteditable="true" data-team="home" data-inning="4"></td>
+                    <td contenteditable="true" data-team="home" data-inning="5"></td>
+                    <td contenteditable="true" data-team="home" data-inning="6"></td>
+                    <td contenteditable="true" data-team="home" data-inning="7"></td>
+                    <td contenteditable="true" data-team="home" data-inning="8"></td>
+                    <td contenteditable="true" data-team="home" data-inning="9"></td>
+                    <td class="score-rhe" id="homeRuns">0</td>
+                    <td class="score-rhe" contenteditable="true" id="homeHits">0</td>
+                    <td class="score-rhe" contenteditable="true" id="homeErrors">0</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="gd-lineup-section">
+              <div class="gd-lineup-tabs-bar">
+                <button id="homeLineupTab" class="gd-lineup-tab is-active" type="button">Nosso time</button>
+                <button id="awayLineupTab" class="gd-lineup-tab" type="button">Adversário</button>
+              </div>
+              <div id="homeLineupPanel" class="gd-lineup-panel">
+                <div id="statusBattingOrder"></div>
+              </div>
+              <div id="awayLineupPanel" class="gd-lineup-panel" hidden>
+                <div id="opponentLineup" class="opponent-lineup"></div>
+              </div>
+            </div>
+
+          </aside>
         </div>
-
-        <!-- Play Log -->
-        <div class="status-log">
-          <h3>Registro de Jogadas</h3>
-          <div class="log-input-row">
-            <input id="playInput" class="play-input" type="text" placeholder="Descreva a jogada (ex: Mikio - Single ao centro)..." />
-            <button id="btnAddPlay" class="ctrl-btn">Registrar</button>
-          </div>
-          <ol id="playLog" class="play-log-list" reversed></ol>
-        </div>
-
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="lineup-data.js"></script>
     <script src="app.js"></script>
+    <script src="status-realtime.js"></script>
   </body>
 </html>
