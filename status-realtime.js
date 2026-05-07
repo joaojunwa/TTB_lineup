@@ -195,13 +195,13 @@ async function enviarComentario() {
   if (!msg) return;
 
   const nome = (typeof getUser === "function" ? getUser() : null) || "Anônimo";
+  const payload = { user_name: nome, mensagem: msg, ts: new Date().toISOString() };
   input.value = "";
 
-  await _commentChannel.send({
-    type: "broadcast",
-    event: "comment",
-    payload: { user_name: nome, mensagem: msg, ts: new Date().toISOString() },
-  });
+  /* Mostra localmente imediatamente (broadcast não retorna para o remetente) */
+  appendComment(payload);
+
+  await _commentChannel.send({ type: "broadcast", event: "comment", payload });
   input.focus();
 }
 

@@ -2741,18 +2741,17 @@ details[open] .historico-summary::before {
   justify-content: center;
   padding: 24px 16px;
   background:
-    radial-gradient(ellipse at 25% 55%, rgba(217,79,42,0.08) 0%, transparent 55%),
-    radial-gradient(ellipse at 75% 25%, rgba(246,200,79,0.07) 0%, transparent 55%),
-    radial-gradient(ellipse at 50% 90%, rgba(26,40,64,0.4) 0%, transparent 60%),
-    #0a0f1a;
+    radial-gradient(ellipse at 50% 0%, rgba(217,67,34,0.18) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(246,195,71,0.10) 0%, transparent 55%),
+    #0d1520;
 }
 
 .login-wrap {
   width: 100%;
-  max-width: 480px;
+  max-width: 420px;
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 32px;
 }
 
 .login-brand {
@@ -2760,37 +2759,44 @@ details[open] .historico-summary::before {
 }
 
 .login-logo {
-  font-size: 3rem;
   line-height: 1;
-  margin-bottom: 14px;
+  margin-bottom: 0;
+  /* amber halo behind the logo, matching the circle in the mascot */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 148px;
+  height: 148px;
+  background: radial-gradient(circle, rgba(245,166,40,0.18) 0%, transparent 72%);
+  border-radius: 50%;
 }
 
 .login-logo-img {
-  width: 96px;
-  height: 96px;
+  width: 140px;
+  height: 140px;
   object-fit: contain;
-  filter: drop-shadow(0 4px 18px rgba(246,200,79,0.35));
+  filter: drop-shadow(0 6px 22px rgba(217,67,34,0.4));
 }
 
 .login-logo-fallback {
   display: none;
-  font-size: 3rem;
+  font-size: 3.5rem;
 }
 
 .login-title {
-  font-size: 2.4rem;
+  font-size: 1.9rem;
   font-weight: 900;
   color: #f8f2e7;
-  margin: 0 0 4px;
-  letter-spacing: 0.08em;
+  margin: 10px 0 2px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
 .login-sub {
-  color: var(--text-muted);
-  font-size: 0.75rem;
+  color: rgba(246,195,71,0.7);
+  font-size: 0.7rem;
   text-transform: uppercase;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.28em;
   margin: 0;
 }
 
@@ -2801,17 +2807,17 @@ details[open] .historico-summary::before {
 }
 
 .login-card {
-  background: #0f1520;
-  border: 1px solid rgba(255,255,255,0.1);
+  background: #111827;
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: 0;
   overflow: hidden;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
 }
 
-.login-card:first-child { border-radius: 12px 12px 0 0; }
-.login-card:last-child  { border-radius: 0 0 12px 12px; border-top: none; }
-.login-card.is-open     { border-color: var(--accent); z-index: 1; position: relative; }
-.login-card:first-child.is-open { border-color: #d94f2a; }
+.login-card:first-child { border-radius: 14px 14px 0 0; }
+.login-card:last-child  { border-radius: 0 0 14px 14px; border-top: none; }
+.login-card.is-open     { background: #141c2e; border-color: #f6c347; z-index: 1; position: relative; }
+.login-card:first-child.is-open { border-color: #d94322; }
 
 .login-card-head {
   width: 100%;
@@ -2903,8 +2909,8 @@ details[open] .historico-summary::before {
 
 .login-btn:hover { opacity: 0.88; }
 
-.login-btn-admin    { background: linear-gradient(135deg, #d94f2a 0%, #c03a18 100%); color: #fff; letter-spacing: 0.04em; }
-.login-btn-spectator { background: linear-gradient(135deg, #1a2840 0%, #0f1a30 100%); color: #93c5fd; border: 1px solid rgba(147,197,253,0.2); }
+.login-btn-admin     { background: linear-gradient(135deg, #d94322 0%, #b83018 100%); color: #fff; letter-spacing: 0.05em; font-weight: 800; }
+.login-btn-spectator { background: linear-gradient(135deg, #1c2b3a 0%, #111827 100%); color: #f6c347; border: 1px solid rgba(246,195,71,0.25); font-weight: 700; }
 
 .login-divider {
   display: flex;
