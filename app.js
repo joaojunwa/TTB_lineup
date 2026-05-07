@@ -1431,6 +1431,9 @@ const testeState = {
   nextId: 1,
 };
 
+const SOFTBALL_ATBATS_KEY = "ttb_softball_atbats";
+let softballAtBats = [];
+
 function testeBatterAB(batter) {
   return batter.completedABs.filter((r) => r === "hit" || r === "out" || r === "k").length;
 }
@@ -1599,7 +1602,207 @@ function renderTeste() {
   renderTesteLeaderboard();
 }
 
+function showTesteToast(message, type = "ok") {
+  if (typeof mostrarToast === "function") {
+    mostrarToast(message, type);
+    return;
+  }
+
+  const toast = document.querySelector("#testeToast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.className = `teste-toast is-visible${type === "erro" ? " is-erro" : ""}`;
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.classList.remove("is-visible"), 3500);
+}
+
+function setTesteMode(mode) {
+  const isSoftball = mode === "softball";
+  document.querySelector("#testeTreinoTab")?.classList.toggle("is-active", !isSoftball);
+  document.querySelector("#testeSoftballTab")?.classList.toggle("is-active", isSoftball);
+  const treinoPanel = document.querySelector("#testeTreinoPanel");
+  const softballPanel = document.querySelector("#testeSoftballPanel");
+  const historicoView = document.querySelector("#testeHistoricoView");
+  if (treinoPanel) treinoPanel.hidden = isSoftball;
+  if (softballPanel) softballPanel.hidden = !isSoftball;
+  if (historicoView) historicoView.hidden = isSoftball;
+}
+
+function loadSoftballAtBats() {
+  try {
+    const raw = localStorage.getItem(SOFTBALL_ATBATS_KEY);
+    softballAtBats = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(softballAtBats)) softballAtBats = [];
+  } catch (_) {
+    softballAtBats = [];
+  }
+}
+
+function saveSoftballAtBats() {
+  try {
+    localStorage.setItem(SOFTBALL_ATBATS_KEY, JSON.stringify(softballAtBats));
+  } catch (_) {}
+}
+
+function getSoftballValue(id) {
+  return document.querySelector(`#${id}`)?.value.trim() ?? "";
+}
+
+function resetSoftballForm(keepNames = true) {
+  if (!keepNames) {
+    const batter = document.querySelector("#softballBatter");
+    const pitcher = document.querySelector("#softballPitcher");
+    if (batter) batter.value = "";
+    if (pitcher) pitcher.value = "";
+  }
+
+  const fields = {
+    softballBalls: "0",
+    softballStrikes: "0",
+    softballResult: "1B",
+    softballContact: "",
+    softballDirection: "",
+    softballRbi: "0",
+    softballNotes: "",
+  };
+
+  Object.entries(fields).forEach(([id, value]) => {
+    const field = document.querySelector(`#${id}`);
+    if (field) field.value = value;
+  });
+}
+
+function softballIsAtBat(result) {
+  return ["1B", "2B", "3B", "HR", "K", "OUT", "FC", "ROE"].includes(result);
+}
+
+function softballIsHit(result) {
+  return ["1B", "2B", "3B", "HR"].includes(result);
+}
+
+function formatSoftballAvg(decimal) {
+  return "." + String(Math.round(decimal * 1000)).padStart(3, "0");
+}
+
+function saveSoftballAtBat() {
+  const batter = getSoftballValue("softballBatter");
+  if (!batter) {
+    showTesteToast("Informe a rebatedora do at-bat.", "erro");
+    return;
+  }
+
+  const result = getSoftballValue("softballResult") || "1B";
+  const record = {
+    id: Date.now().toString(),
+    createdAt: new Date().toISOString(),
+    batter,
+    pitcher: getSoftballValue("softballPitcher"),
+    inning: Number(getSoftballValue("softballInning")) || 1,
+    balls: Number(getSoftballValue("softballBalls")) || 0,
+    strikes: Number(getSoftballValue("softballStrikes")) || 0,
+    result,
+    contact: getSoftballValue("softballContact"),
+    direction: getSoftballValue("softballDirection"),
+    rbi: Number(getSoftballValue("softballRbi")) || 0,
+    notes: getSoftballValue("softballNotes"),
+  };
+
+  softballAtBats.unshift(record);
+  saveSoftballAtBats();
+  renderSoftballAtBats();
+  resetSoftballForm(true);
+  showTesteToast("At-bat de softball salvo.");
+}
+
+function removeSoftballAtBat(id) {
+  softballAtBats = softballAtBats.filter((record) => record.id !== id);
+  saveSoftballAtBats();
+  renderSoftballAtBats();
+}
+
+function clearSoftballAtBats() {
+  if (softballAtBats.length === 0) return;
+  if (!confirm("Apagar todos os at-bats de softball salvos?")) return;
+  softballAtBats = [];
+  saveSoftballAtBats();
+  renderSoftballAtBats();
+  showTesteToast("Histórico de softball apagado.");
+}
+
+function renderSoftballSummary() {
+  const container = document.querySelector("#softballSummary");
+  if (!container) return;
+  const ab = softballAtBats.filter((record) => softballIsAtBat(record.result)).length;
+  const hits = softballAtBats.filter((record) => softballIsHit(record.result)).length;
+  const walks = softballAtBats.filter((record) => record.result === "BB").length;
+  const rbi = softballAtBats.reduce((total, record) => total + (Number(record.rbi) || 0), 0);
+  const avg = ab > 0 ? hits / ab : 0;
+
+  container.innerHTML = `
+    <div class="softball-summary-item"><span>AB</span><strong>${ab}</strong></div>
+    <div class="softball-summary-item"><span>Hits</span><strong>${hits}</strong></div>
+    <div class="softball-summary-item"><span>BB</span><strong>${walks}</strong></div>
+    <div class="softball-summary-item"><span>AVG</span><strong>${formatSoftballAvg(avg)}</strong></div>
+    <div class="softball-summary-item"><span>RBI</span><strong>${rbi}</strong></div>
+  `;
+}
+
+function renderSoftballAtBats() {
+  renderSoftballSummary();
+  const container = document.querySelector("#softballHistory");
+  if (!container) return;
+
+  if (softballAtBats.length === 0) {
+    container.innerHTML = `<p class="softball-empty">Nenhum at-bat de softball salvo ainda.</p>`;
+    return;
+  }
+
+  container.innerHTML = softballAtBats
+    .map((record) => {
+      const time = new Date(record.createdAt).toLocaleString("pt-BR", {
+        day: "2-digit",
+        month: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const details = [
+        `Inning ${record.inning}`,
+        `B${record.balls}-S${record.strikes}`,
+        record.pitcher ? `Pitcher: ${record.pitcher}` : "",
+        record.contact || "",
+        record.direction || "",
+        record.rbi ? `${record.rbi} RBI` : "",
+      ].filter(Boolean).join(" · ");
+
+      return `
+        <article class="softball-atbat-card">
+          <div class="softball-atbat-top">
+            <span class="softball-result">${escapeHtml(record.result)}</span>
+            <span class="softball-player">${escapeHtml(record.batter)}</span>
+            <span class="softball-time">${escapeHtml(time)}</span>
+            <button class="teste-batter-remove softball-remove" data-softball-remove="${escapeHtml(record.id)}" type="button" aria-label="Remover at-bat">x</button>
+          </div>
+          <div class="softball-atbat-meta">${escapeHtml(details || "Sem detalhes")}</div>
+          ${record.notes ? `<div class="softball-atbat-note">${escapeHtml(record.notes)}</div>` : ""}
+        </article>
+      `;
+    })
+    .join("");
+
+  container.querySelectorAll("[data-softball-remove]").forEach((button) => {
+    button.addEventListener("click", () => removeSoftballAtBat(button.dataset.softballRemove));
+  });
+}
+
 if (PAGE === "teste") {
+  loadSoftballAtBats();
+  renderSoftballAtBats();
+
+  document.querySelector("#testeTreinoTab")?.addEventListener("click", () => setTesteMode("treino"));
+  document.querySelector("#testeSoftballTab")?.addEventListener("click", () => setTesteMode("softball"));
+  document.querySelector("#softballSave")?.addEventListener("click", saveSoftballAtBat);
+  document.querySelector("#softballClear")?.addEventListener("click", () => resetSoftballForm(false));
+  document.querySelector("#softballClearHistory")?.addEventListener("click", clearSoftballAtBats);
   /* ── Pitch zone (Teste) ── */
   const testePitchWrapper = document.querySelector("#testePitchWrapper");
   const testePitchBox     = document.querySelector("#testePitchBox");
