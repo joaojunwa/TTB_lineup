@@ -3,7 +3,7 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
-  background: #0d1520;
+  background: transparent;
   color: #f0ead8;
   --panel: #111827;
   --panel-soft: #1c2b3a;
@@ -26,7 +26,13 @@
 body {
   min-height: 100vh;
   margin: 0;
-  background: #0d1520;
+  background-color: #0d1520;
+  background-image:
+    linear-gradient(rgba(10, 15, 28, 0.82), rgba(10, 15, 28, 0.82)),
+    url('static/field.png');
+  background-size: cover;
+  background-position: center center;
+  background-attachment: fixed;
 }
 
 button,
@@ -43,6 +49,7 @@ button {
   min-height: 100vh;
   margin: 0 auto;
   padding: 12px;
+  position: relative;
 }
 
 .toolbar {
@@ -401,7 +408,7 @@ h1 {
 .empty-label {
   max-width: 110px;
   overflow: hidden;
-  color: #f5efe3;
+  color: #f0ead8;
   font-size: 0.74rem;
   font-weight: 800;
   text-overflow: ellipsis;
@@ -448,7 +455,7 @@ h1 {
 .player-chip span {
   max-width: 150px;
   overflow: hidden;
-  color: #17112a;
+  color: #0d1520;
   font-size: 0.96rem;
   font-weight: 900;
   line-height: 1.1;
@@ -457,7 +464,7 @@ h1 {
 }
 
 .player-chip em {
-  color: #17112a;
+  color: #0d1520;
   font-size: 0.74rem;
   font-style: normal;
   font-weight: 800;
@@ -1551,7 +1558,7 @@ textarea {
 
 .ctrl-btn:hover { background: #1e304e; }
 .ctrl-ball   { border-color: rgba(80, 180, 120, 0.5); color: #6bcf9e; }
-.ctrl-strike { border-color: rgba(246,200,79,0.5);   color: var(--accent); }
+.ctrl-strike { border-color: rgba(246,195,71,0.5);   color: var(--accent); }
 .ctrl-hit    { border-color: rgba(76, 175, 125, 0.55); color: #4caf7d; }
 .ctrl-out    { border-color: rgba(224, 82, 82, 0.5);  color: #e05252; }
 .ctrl-next   { grid-column: 1 / -1; border-color: rgba(255,255,255,0.2); }
@@ -1726,7 +1733,7 @@ textarea {
 
 .play-input:focus {
   outline: none;
-  border-color: rgba(246,200,79,0.5);
+  border-color: rgba(246,195,71,0.5);
 }
 
 .play-log-list {
@@ -2269,7 +2276,7 @@ details[open] .historico-summary::before {
    MLB GAMEDAY — Status page
 ══════════════════════════════════════════ */
 
-[data-page="status"] body { background: #0d1520; }
+[data-page="status"] body { background: transparent; }
 
 [data-page="status"] .app-shell {
   padding: 0;
@@ -2286,7 +2293,8 @@ details[open] .historico-summary::before {
   justify-content: space-between;
   padding: 0 16px;
   height: 44px;
-  background: #111827;
+  background: rgba(10, 15, 28, 0.88);
+  backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   flex-shrink: 0;
 }
@@ -2312,7 +2320,8 @@ details[open] .historico-summary::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #111827;
+  background: rgba(10, 15, 28, 0.80);
+  backdrop-filter: blur(8px);
   border-bottom: 1px solid rgba(255,255,255,0.1);
   padding: 10px 24px;
   flex-shrink: 0;
@@ -2425,7 +2434,7 @@ details[open] .historico-summary::before {
   display: flex;
   flex-direction: column;
   border-right: 1px solid rgba(255,255,255,0.08);
-  background: #0d1520;
+  background: rgba(10, 15, 28, 0.78);
   overflow: hidden;
 }
 
@@ -2461,8 +2470,8 @@ details[open] .historico-summary::before {
 }
 
 .gd-play-item.gd-play-sys {
-  background: rgba(246,200,79,0.05);
-  border-bottom-color: rgba(246,200,79,0.12);
+  background: rgba(246,195,71,0.05);
+  border-bottom-color: rgba(246,195,71,0.12);
 }
 
 .gd-play-meta {
@@ -2536,7 +2545,7 @@ details[open] .historico-summary::before {
   padding: 14px 20px 16px;
   gap: 14px;
   overflow-y: auto;
-  background: #0d1520;
+  background: rgba(10, 15, 28, 0.65);
 }
 
 .gd-batter-bar {
@@ -2652,7 +2661,7 @@ details[open] .historico-summary::before {
   display: flex;
   flex-direction: column;
   border-left: 1px solid rgba(255,255,255,0.08);
-  background: #0d1520;
+  background: rgba(10, 15, 28, 0.78);
   overflow: hidden;
 }
 
@@ -2732,7 +2741,7 @@ details[open] .historico-summary::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0d1520;
+  background: transparent;
 }
 
 .login-bg {
@@ -2743,9 +2752,9 @@ details[open] .historico-summary::before {
   justify-content: center;
   padding: 24px 16px;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(217,67,34,0.18) 0%, transparent 50%),
-    radial-gradient(ellipse at 20% 80%, rgba(246,195,71,0.10) 0%, transparent 55%),
-    #0d1520;
+    radial-gradient(ellipse at 50% 0%, rgba(217,67,34,0.22) 0%, transparent 50%),
+    radial-gradient(ellipse at 20% 80%, rgba(246,195,71,0.12) 0%, transparent 55%),
+    transparent;
 }
 
 .login-wrap {
@@ -2938,7 +2947,7 @@ details[open] .historico-summary::before {
   font-weight: 700;
   padding: 3px 8px;
   border-radius: 10px;
-  background: rgba(246,200,79,0.15);
+  background: rgba(246,195,71,0.15);
   color: var(--accent);
   white-space: nowrap;
 }
@@ -3087,7 +3096,7 @@ details[open] .historico-summary::before {
 }
 
 .gd-stat-current td {
-  background: rgba(246,200,79,0.07);
+  background: rgba(246,195,71,0.07);
 }
 
 .gd-stat-current .gd-stat-name {
@@ -3249,7 +3258,7 @@ details[open] .historico-summary::before {
   transition: border-color 0.15s;
 }
 
-.gd-comment-input:focus { border-color: rgba(246,200,79,0.5); }
+.gd-comment-input:focus { border-color: rgba(246,195,71,0.5); }
 .gd-comment-input::placeholder { color: var(--text-muted); }
 .gd-comment-input:disabled { opacity: 0.5; }
 
