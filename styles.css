@@ -3317,6 +3317,69 @@ details[open] .historico-summary::before {
   padding: 4px 8px;
 }
 
+/* ── Lineup Switcher ── */
+.lineup-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(10, 15, 28, 0.55);
+  border-bottom: 1px solid rgba(246, 195, 71, 0.12);
+  flex-wrap: wrap;
+}
+
+.lsw-btn {
+  background: rgba(26, 38, 56, 0.7);
+  color: var(--text-muted);
+  border: 1px solid rgba(246, 195, 71, 0.2);
+  border-radius: 20px;
+  padding: 4px 14px;
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.lsw-btn:hover {
+  background: rgba(246, 195, 71, 0.15);
+  color: var(--accent);
+  border-color: rgba(246, 195, 71, 0.4);
+}
+
+.lsw-btn.is-active {
+  background: var(--accent);
+  color: #0d1520;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+
+.lsw-viewing-label {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ── Modo leitura ao ver lineup de outro jogador ── */
+.is-viewing-other .toolbar-actions button:not(.btn-logout) {
+  display: none !important;
+}
+.is-viewing-other #lineupPanel {
+  pointer-events: none;
+  opacity: 0.55;
+}
+.is-viewing-other .field-slot {
+  pointer-events: none;
+}
+
+/* ── Login: label pequeno para o campo de data ── */
+.login-label-sm {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+
 /* ── Modo Espectador ── */
 
 /* ── Status: esconder controles ── */

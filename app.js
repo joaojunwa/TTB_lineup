@@ -28,19 +28,20 @@ let lineupPending = new Set();
 
 function saveLineupState() {
   try {
-    localStorage.setItem("ttb_lineup", JSON.stringify({
+    localStorage.setItem("ttb_lineup_" + getUser(), JSON.stringify({
       assignments,
       battingOrders,
       lineupPending: [...lineupPending],
       dhEnabled,
       dhAssignment,
     }));
+    if (typeof autosaveLineup === "function") autosaveLineup();
   } catch (_) {}
 }
 
 function loadLineupState() {
   try {
-    const raw = localStorage.getItem("ttb_lineup");
+    const raw = localStorage.getItem("ttb_lineup_" + getUser());
     if (!raw) return;
     const s = JSON.parse(raw);
     if (s.assignments)   assignments   = s.assignments;
