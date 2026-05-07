@@ -3199,6 +3199,124 @@ details[open] .historico-summary::before {
 
 .btn-logout:hover { color: #f87171; border-color: #5c2e2e; }
 
+.admin-profiles-open {
+  min-height: 32px;
+  border: 1px solid rgba(246,195,71,0.45);
+  border-radius: 6px;
+  background: #1c2b3a;
+  color: var(--accent);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  padding: 0 10px;
+}
+
+.admin-profiles-dialog {
+  width: min(420px, calc(100vw - 24px));
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  color: #f0ead8;
+  padding: 0;
+}
+
+.admin-profiles-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.58);
+}
+
+.admin-profiles-card {
+  margin: 0;
+}
+
+.admin-profiles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.admin-profiles-head h2 {
+  margin: 0;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.admin-profiles-body {
+  display: grid;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+
+.admin-profiles-body label {
+  display: grid;
+  gap: 5px;
+}
+
+.admin-profiles-body span {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.admin-profiles-body input {
+  height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #0a1020;
+  color: #f0ead8;
+  font: inherit;
+  padding: 0 10px;
+}
+
+.admin-profiles-error {
+  min-height: 18px;
+  margin: 0;
+  color: #f87171;
+  font-size: 0.8rem;
+}
+
+.admin-profiles-list {
+  list-style: none;
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.admin-profile-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0a1020;
+  padding: 9px 10px;
+}
+
+.admin-profile-item strong,
+.admin-profile-item small {
+  display: block;
+}
+
+.admin-profile-item small {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.admin-profile-item button {
+  border: 1px solid #5c2e2e;
+  border-radius: 6px;
+  background: transparent;
+  color: #f87171;
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 4px 8px;
+}
+
 /* ── Modo Espectador ── */
 
 /* ── Status: esconder controles ── */

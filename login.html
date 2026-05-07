@@ -28,7 +28,7 @@
               <span class="login-card-icon">🔑</span>
               <div class="login-card-label">
                 <strong>Adm</strong>
-                <small>kenji pequeno</small>
+                <small>login + aniversario</small>
               </div>
               <span class="login-card-arrow">›</span>
             </button>
@@ -38,7 +38,7 @@
                   <input id="adminUser" type="text" placeholder="Usuário" autocomplete="username" />
                 </div>
                 <div class="login-field">
-                  <input id="adminPass" type="password" placeholder="Senha" autocomplete="current-password" />
+                  <input id="adminBirthday" type="text" inputmode="numeric" placeholder="Data de aniversario (dd/mm/aaaa)" autocomplete="bday" />
                 </div>
                 <p class="login-error" id="adminError"></p>
                 <button type="submit" class="login-btn login-btn-admin">Entrar</button>
@@ -102,17 +102,26 @@
       document.getElementById("btnToggleSpectator").addEventListener("click", () =>
         toggleCard("bodySpectator", "btnToggleSpectator"));
 
-      document.getElementById("formAdmin").addEventListener("submit", (e) => {
+      document.getElementById("formAdmin").addEventListener("submit", async (e) => {
         e.preventDefault();
         const user = document.getElementById("adminUser").value;
-        const pass = document.getElementById("adminPass").value;
-        if (loginAdmin(user, pass)) {
+        const birthday = document.getElementById("adminBirthday").value;
+        const button = e.currentTarget.querySelector("button[type='submit']");
+        if (button) {
+          button.disabled = true;
+          button.textContent = "Entrando...";
+        }
+        if (await loginAdmin(user, birthday)) {
           window.location.replace("index.html");
         } else {
           const err = document.getElementById("adminError");
-          err.textContent = "Usuário ou senha incorretos.";
-          document.getElementById("adminPass").value = "";
-          document.getElementById("adminPass").focus();
+          err.textContent = "Login ou data de aniversario incorretos.";
+          document.getElementById("adminBirthday").value = "";
+          document.getElementById("adminBirthday").focus();
+          if (button) {
+            button.disabled = false;
+            button.textContent = "Entrar";
+          }
         }
       });
 
