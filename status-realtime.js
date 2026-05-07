@@ -154,13 +154,71 @@ function novoJogo() {
   salvarJogo();
 }
 
+/* ═══════════════════════════════
+   COMENTÁRIOS AO VIVO (broadcast — sem banco)
+═══════════════════════════════ */
+
+let _commentChannel = null;
+
+function escapeHtml(str) {
+  return String(str).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function appendComment({ user_name, mensagem, ts }) {
+  const list = document.querySelector("#commentsList");
+  if (!list) return;
+  const li = document.createElement("li");
+  li.className = "gd-comment-item";
+  const time = ts
+    ? new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+    : "";
+  li.innerHTML = `<span class="gd-comment-name">${escapeHtml(user_name)}</span><span class="gd-comment-msg">${escapeHtml(mensagem)}</span><span class="gd-comment-time">${time}</span>`;
+  list.appendChild(li);
+  list.scrollTop = list.scrollHeight;
+  while (list.children.length > 80) list.removeChild(list.firstChild);
+}
+
+function inscreverComentarios() {
+  if (!_db) return;
+  _commentChannel = _db
+    .channel("ttb-comentarios")
+    .on("broadcast", { event: "comment" }, ({ payload }) => {
+      if (payload) appendComment(payload);
+    })
+    .subscribe();
+}
+
+async function enviarComentario() {
+  if (!_commentChannel) return;
+  const input = document.querySelector("#commentInput");
+  const msg = input?.value?.trim();
+  if (!msg) return;
+
+  const nome = (typeof getUser === "function" ? getUser() : null) || "Anônimo";
+  input.value = "";
+
+  await _commentChannel.send({
+    type: "broadcast",
+    event: "comment",
+    payload: { user_name: nome, mensagem: msg, ts: new Date().toISOString() },
+  });
+  input.focus();
+}
+
 /* ── Init ── */
 if (PAGE === "status") {
   if (typeof window.supabase !== "undefined") {
     _db = window.supabase.createClient(RT_URL, RT_KEY);
     carregarJogo().then(() => inscreverRealtime());
+    inscreverComentarios();
   } else {
     console.warn("Supabase CDN não disponível — modo offline.");
   }
   document.querySelector("#btnNovoJogo")?.addEventListener("click", novoJogo);
+
+  /* Enviar comentário */
+  document.querySelector("#btnSendComment")?.addEventListener("click", enviarComentario);
+  document.querySelector("#commentInput")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); enviarComentario(); }
+  });
 }

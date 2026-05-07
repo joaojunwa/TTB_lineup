@@ -53,13 +53,25 @@
         <!-- 3 columns -->
         <div class="gd-columns">
 
-          <!-- LEFT: play log -->
+          <!-- LEFT: play log + comments -->
           <aside class="gd-col-left">
             <div class="gd-col-head">Jogadas</div>
             <ol id="playLog" class="gd-play-log" reversed></ol>
             <div class="gd-log-footer">
               <input id="playInput" class="gd-play-input-el" type="text" placeholder="Descrever jogada..." />
               <button id="btnAddPlay" class="gd-btn-add">+</button>
+            </div>
+
+            <div class="gd-comments-section">
+              <div class="gd-col-head gd-comments-head">
+                <span>Comentários ao vivo</span>
+                <span class="gd-comment-live-dot"></span>
+              </div>
+              <ul id="commentsList" class="gd-comments-list"></ul>
+              <div class="gd-comment-footer">
+                <input id="commentInput" class="gd-comment-input" type="text" placeholder="Comentar..." maxlength="200" />
+                <button id="btnSendComment" class="gd-btn-add">→</button>
+              </div>
             </div>
           </aside>
 

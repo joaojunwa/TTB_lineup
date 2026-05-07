@@ -1235,6 +1235,7 @@ function renderStatus() {
   });
 
   renderPitchDots();
+  renderPlayLog();
   renderStatusBattingOrder();
   renderOpponentLineup();
   renderStatusLineupTabs();
