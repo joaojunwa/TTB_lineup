@@ -28,7 +28,7 @@ body {
   margin: 0;
   background-color: #0d1520;
   background-image:
-    linear-gradient(rgba(10, 15, 28, 0.82), rgba(10, 15, 28, 0.82)),
+    linear-gradient(rgba(10, 15, 28, 0.72), rgba(10, 15, 28, 0.72)),
     url('static/field.png');
   background-size: cover;
   background-position: center center;
@@ -2276,7 +2276,7 @@ details[open] .historico-summary::before {
    MLB GAMEDAY — Status page
 ══════════════════════════════════════════ */
 
-[data-page="status"] body { background: transparent; }
+[data-page="status"] body { background-color: transparent; }
 
 [data-page="status"] .app-shell {
   padding: 0;
@@ -2741,7 +2741,7 @@ details[open] .historico-summary::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background-color: transparent;
 }
 
 .login-bg {
