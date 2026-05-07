@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulador de Lineup de Baseball</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="auth.js"></script>
+    <script>checkAuth();</script>
   </head>
   <body>
     <main class="app-shell">
@@ -23,6 +25,7 @@
         </div>
 
         <div class="toolbar-actions">
+          <button class="btn-logout" type="button">Sair</button>
           <button id="drawerToggle" type="button" aria-controls="lineupPanel" aria-expanded="false">
             <span class="label-full">Jogadores</span>
             <span class="label-short">Elenco</span>

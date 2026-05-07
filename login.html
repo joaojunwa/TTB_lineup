@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="pt-BR" data-page="login">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TTB Lineup — Entrar</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script src="auth.js"></script>
+  </head>
+  <body>
+    <div class="login-bg">
+      <div class="login-wrap">
+
+        <div class="login-brand">
+          <div class="login-logo">⚾</div>
+          <h1 class="login-title">TTB Lineup</h1>
+          <p class="login-sub">Baseball Manager</p>
+        </div>
+
+        <div class="login-cards">
+
+          <!-- Admin -->
+          <div class="login-card" id="cardAdmin">
+            <button class="login-card-head" id="btnToggleAdmin" type="button" aria-expanded="false">
+              <span class="login-card-icon">🔑</span>
+              <div class="login-card-label">
+                <strong>Administrador</strong>
+                <small>Acesso completo ao sistema</small>
+              </div>
+              <span class="login-card-arrow">›</span>
+            </button>
+            <div class="login-card-body" id="bodyAdmin" hidden>
+              <form id="formAdmin" autocomplete="on">
+                <div class="login-field">
+                  <input id="adminUser" type="text" placeholder="Usuário" autocomplete="username" />
+                </div>
+                <div class="login-field">
+                  <input id="adminPass" type="password" placeholder="Senha" autocomplete="current-password" />
+                </div>
+                <p class="login-error" id="adminError"></p>
+                <button type="submit" class="login-btn login-btn-admin">Entrar</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="login-divider"><span>ou</span></div>
+
+          <!-- Espectador -->
+          <div class="login-card" id="cardSpectator">
+            <button class="login-card-head" id="btnToggleSpectator" type="button" aria-expanded="false">
+              <span class="login-card-icon">👁</span>
+              <div class="login-card-label">
+                <strong>Espectador</strong>
+                <small>Acompanhe o jogo ao vivo</small>
+              </div>
+              <span class="login-card-arrow">›</span>
+            </button>
+            <div class="login-card-body" id="bodySpectator" hidden>
+              <form id="formSpectator" autocomplete="off">
+                <div class="login-field">
+                  <input id="spectatorName" type="text" placeholder="Seu nome" autocomplete="nickname" />
+                </div>
+                <button type="submit" class="login-btn login-btn-spectator">Assistir ao vivo →</button>
+              </form>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* Redireciona se já estiver logado */
+      if (isLoggedIn()) {
+        window.location.replace(isSpectator() ? "status.html" : "index.html");
+      }
+
+      function toggleCard(bodyId, btnId) {
+        const body = document.getElementById(bodyId);
+        const btn  = document.getElementById(btnId);
+        const open = !body.hidden;
+        /* Fecha todos */
+        document.querySelectorAll(".login-card-body").forEach((b) => (b.hidden = true));
+        document.querySelectorAll(".login-card-head").forEach((b) => {
+          b.setAttribute("aria-expanded", "false");
+          b.closest(".login-card").classList.remove("is-open");
+        });
+        if (!open) {
+          body.hidden = false;
+          btn.setAttribute("aria-expanded", "true");
+          btn.closest(".login-card").classList.add("is-open");
+          body.querySelector("input")?.focus();
+        }
+      }
+
+      document.getElementById("btnToggleAdmin").addEventListener("click", () =>
+        toggleCard("bodyAdmin", "btnToggleAdmin"));
+
+      document.getElementById("btnToggleSpectator").addEventListener("click", () =>
+        toggleCard("bodySpectator", "btnToggleSpectator"));
+
+      document.getElementById("formAdmin").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const user = document.getElementById("adminUser").value;
+        const pass = document.getElementById("adminPass").value;
+        if (loginAdmin(user, pass)) {
+          window.location.replace("index.html");
+        } else {
+          const err = document.getElementById("adminError");
+          err.textContent = "Usuário ou senha incorretos.";
+          document.getElementById("adminPass").value = "";
+          document.getElementById("adminPass").focus();
+        }
+      });
+
+      document.getElementById("formSpectator").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = document.getElementById("spectatorName").value;
+        if (loginSpectator(name)) {
+          window.location.replace("status.html");
+        }
+      });
+    </script>
+  </body>
+</html>

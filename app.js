@@ -1033,17 +1033,55 @@ function renderOpponentLineup() {
   const container = document.querySelector("#opponentLineup");
   if (!container) return;
   const current = getCurrentTeamBatterIndex("away") % opponentLineup.length;
-  container.innerHTML = opponentLineup
-    .map((row, index) => `
-      <label class="opponent-row${index === current ? " is-current" : ""}">
-        <span class="opponent-order">${row.order}.</span>
-        <input class="opponent-input" data-opponent-index="${index}" data-opponent-field="number" inputmode="numeric" placeholder="#" value="${escapeHtml(row.number)}" aria-label="Numero do jogador ${row.order} do adversario" />
-        <input class="opponent-input" data-opponent-index="${index}" data-opponent-field="name" placeholder="Jogador" value="${escapeHtml(row.name)}" aria-label="Nome do jogador ${row.order} do adversario" />
-      </label>
-    `)
-    .join("");
+  const totals = { ab: 0, h: 0, bb: 0, k: 0 };
 
-  container.querySelectorAll(".opponent-input").forEach((input) => {
+  const rows = opponentLineup.map((row, index) => {
+    const isCurrent = index === current;
+    const key = `away_${index}`;
+    const s = gameState.playerStats[key] || { ab: 0, h: 0, bb: 0, k: 0 };
+    totals.ab += s.ab; totals.h += s.h; totals.bb += s.bb; totals.k += s.k;
+    const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
+    return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
+      <td class="gd-stat-num">${row.order}</td>
+      <td class="gd-stat-name gd-opp-inputs">
+        <input class="opp-num-input" data-opponent-index="${index}" data-opponent-field="number"
+          inputmode="numeric" placeholder="#" value="${escapeHtml(row.number)}" />
+        <input class="opp-name-input" data-opponent-index="${index}" data-opponent-field="name"
+          placeholder="Jogador ${row.order}" value="${escapeHtml(row.name)}" />
+      </td>
+      <td>${s.ab || 0}</td>
+      <td>${s.h  || 0}</td>
+      <td>${s.bb || 0}</td>
+      <td>${s.k  || 0}</td>
+      <td class="gd-stat-avg">${avg}</td>
+    </tr>`;
+  }).join("");
+
+  const totalAvg = totals.ab > 0
+    ? "." + String(Math.round((totals.h / totals.ab) * 1000)).padStart(3, "0")
+    : "—";
+
+  container.innerHTML = `
+    <table class="gd-stats-table">
+      <thead>
+        <tr>
+          <th colspan="2" class="gd-stats-head-team">Adversário</th>
+          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows}
+        <tr class="gd-stat-totals">
+          <td colspan="2">Totais</td>
+          <td>${totals.ab}</td><td>${totals.h}</td>
+          <td>${totals.bb}</td><td>${totals.k}</td>
+          <td class="gd-stat-avg">${totalAvg}</td>
+        </tr>
+      </tbody>
+    </table>
+  `;
+
+  container.querySelectorAll(".opp-num-input, .opp-name-input").forEach((input) => {
     input.addEventListener("input", (event) => {
       const el = event.currentTarget;
       const row = opponentLineup[Number(el.dataset.opponentIndex)];
@@ -1134,15 +1172,24 @@ function advanceBatterByWalk() {
 }
 
 function recordBatterStat(field, amount = 1) {
-  if (currentBattingTeam() !== "home") return;
-  const batters = getStatusBatterList();
-  if (!batters.length) return;
-  const batter = batters[getCurrentTeamBatterIndex("home") % batters.length];
-  if (!batter) return;
-  if (!gameState.playerStats[batter.id]) {
-    gameState.playerStats[batter.id] = { ab: 0, h: 0, bb: 0, k: 0 };
+  const team = currentBattingTeam();
+  let key;
+
+  if (team === "home") {
+    const batters = getStatusBatterList();
+    if (!batters.length) return;
+    const batter = batters[getCurrentTeamBatterIndex("home") % batters.length];
+    if (!batter) return;
+    key = batter.id;
+  } else {
+    const idx = getCurrentTeamBatterIndex("away") % Math.max(opponentLineup.length, 1);
+    key = `away_${idx}`;
   }
-  gameState.playerStats[batter.id][field] = (gameState.playerStats[batter.id][field] || 0) + amount;
+
+  if (!gameState.playerStats[key]) {
+    gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0 };
+  }
+  gameState.playerStats[key][field] = (gameState.playerStats[key][field] || 0) + amount;
 }
 
 function completeWalk() {

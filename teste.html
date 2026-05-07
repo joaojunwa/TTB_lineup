@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Teste — TTB Lineup</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="auth.js"></script>
+    <script>checkAuth(true);</script>
   </head>
   <body>
     <main class="app-shell">
@@ -22,7 +24,9 @@
           </nav>
         </div>
 
-        <div class="toolbar-actions"></div>
+        <div class="toolbar-actions">
+          <button class="btn-logout" type="button">Sair</button>
+        </div>
       </section>
 
       <section id="testeTab" class="teste-view">

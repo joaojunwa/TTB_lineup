@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Status do Jogo — TTB Lineup</title>
     <link rel="stylesheet" href="styles.css" />
+    <script src="auth.js"></script>
+    <script>checkAuth();</script>
   </head>
   <body>
     <main class="app-shell gd-shell">
@@ -21,6 +23,7 @@
           <span id="gdRealtimeStatus" class="gd-realtime-dot gd-rt-connecting" title="Conectando..."></span>
           <span id="gdRealtimeLabel" class="gd-realtime-label">Conectando...</span>
           <button id="btnNovoJogo" class="gd-btn-novo-jogo">Novo Jogo</button>
+          <button class="btn-logout gd-btn-novo-jogo" type="button">Sair</button>
         </div>
       </nav>
 
