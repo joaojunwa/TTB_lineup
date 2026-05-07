@@ -6,7 +6,7 @@
     <title>Teste — TTB Lineup</title>
     <link rel="stylesheet" href="styles.css" />
     <script src="auth.js"></script>
-    <script>checkAuth(true);</script>
+    <script>checkAuth();</script>
   </head>
   <body>
     <main class="app-shell">
@@ -30,7 +30,12 @@
       </section>
 
       <section id="testeTab" class="teste-view">
+        <div class="teste-mode-tabs" aria-label="Modos de teste">
+          <button id="testeTreinoTab" class="teste-mode-tab is-active" type="button">Treino</button>
+          <button id="testeSoftballTab" class="teste-mode-tab" type="button">Softball At-Bat</button>
+        </div>
 
+        <div id="testeTreinoPanel" class="teste-mode-panel">
         <div class="teste-setup">
           <div class="teste-setup-fields">
             <div class="teste-field-group">
@@ -119,9 +124,98 @@
           </div>
 
         </div>
+        </div>
+
+        <div id="testeSoftballPanel" class="teste-mode-panel" hidden>
+          <div class="softball-layout">
+            <section class="softball-card">
+              <h3 class="teste-section-title">At-bat de Softball</h3>
+              <div class="softball-form">
+                <label class="teste-field-group">
+                  <span class="teste-label">Rebatedora</span>
+                  <input id="softballBatter" class="teste-input" placeholder="Nome..." />
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Pitcher</span>
+                  <input id="softballPitcher" class="teste-input" placeholder="Pitcher..." />
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Inning</span>
+                  <input id="softballInning" class="teste-input" type="number" min="1" value="1" />
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Contagem</span>
+                  <div class="softball-count-row">
+                    <input id="softballBalls" class="teste-input" type="number" min="0" max="4" value="0" aria-label="Balls" />
+                    <input id="softballStrikes" class="teste-input" type="number" min="0" max="3" value="0" aria-label="Strikes" />
+                  </div>
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Resultado</span>
+                  <select id="softballResult" class="teste-input">
+                    <option value="1B">Single</option>
+                    <option value="2B">Double</option>
+                    <option value="3B">Triple</option>
+                    <option value="HR">Home run</option>
+                    <option value="BB">Walk</option>
+                    <option value="K">Strikeout</option>
+                    <option value="OUT">Out</option>
+                    <option value="FC">Fielder choice</option>
+                    <option value="ROE">Erro</option>
+                    <option value="SAC">Sacrifice</option>
+                  </select>
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Contato</span>
+                  <select id="softballContact" class="teste-input">
+                    <option value="">Opcional</option>
+                    <option value="ground">Ground ball</option>
+                    <option value="line">Line drive</option>
+                    <option value="fly">Fly ball</option>
+                    <option value="pop">Pop up</option>
+                    <option value="bunt">Bunt</option>
+                  </select>
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">Direcao</span>
+                  <select id="softballDirection" class="teste-input">
+                    <option value="">Opcional</option>
+                    <option value="LF">Left</option>
+                    <option value="LC">Left-center</option>
+                    <option value="CF">Center</option>
+                    <option value="RC">Right-center</option>
+                    <option value="RF">Right</option>
+                    <option value="INF">Infield</option>
+                  </select>
+                </label>
+                <label class="teste-field-group">
+                  <span class="teste-label">RBI</span>
+                  <input id="softballRbi" class="teste-input" type="number" min="0" value="0" />
+                </label>
+                <label class="teste-field-group softball-notes">
+                  <span class="teste-label">Observacao</span>
+                  <textarea id="softballNotes" class="softball-textarea" placeholder="Ex: contato forte no campo oposto..."></textarea>
+                </label>
+              </div>
+              <div class="softball-actions">
+                <button id="softballSave" class="ctrl-btn ctrl-salvar">Salvar At-Bat</button>
+                <button id="softballClear" class="ctrl-btn ctrl-reset">Limpar formulario</button>
+              </div>
+            </section>
+
+            <section class="softball-card">
+              <div class="softball-history-heading">
+                <h3 class="teste-section-title">Dados salvos</h3>
+                <button id="softballClearHistory" class="ctrl-btn ctrl-reset">Apagar tudo</button>
+              </div>
+              <div id="softballSummary" class="softball-summary"></div>
+              <div id="softballHistory" class="softball-history"></div>
+            </section>
+          </div>
+        </div>
       </section>
 
-      <section class="historico-view">
+      <section id="testeHistoricoView" class="historico-view">
         <h2 class="historico-title">Histórico de Treinos</h2>
         <div id="testeHistorico"></div>
       </section>

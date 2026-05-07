@@ -1807,6 +1807,37 @@ textarea {
   gap: 16px;
 }
 
+.teste-mode-tabs {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 3px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #0a1020;
+}
+
+.teste-mode-tab {
+  min-height: 34px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.86rem;
+  font-weight: 900;
+  padding: 0 16px;
+}
+
+.teste-mode-tab.is-active {
+  background: #1c2b3a;
+  color: var(--accent);
+}
+
+.teste-mode-panel[hidden] {
+  display: none;
+}
+
 .teste-setup {
   display: flex;
   align-items: flex-end;
@@ -2972,6 +3003,7 @@ details[open] .historico-summary::before {
 
 /* ── Modo Espectador ── */
 
+/* ── Status: esconder controles ── */
 .is-spectator .gd-action-btn,
 .is-spectator #btnNovoJogo,
 .is-spectator .gd-log-footer,
@@ -2991,6 +3023,40 @@ details[open] .historico-summary::before {
 }
 
 .is-spectator #pitchZoneWrapper { opacity: 0.75; }
+
+/* ── Lineup: somente visualização ── */
+.is-spectator #drawerToggle,
+.is-spectator #clearField,
+.is-spectator #resetLineup,
+.is-spectator #exportLineup,
+.is-spectator #drawerClose,
+.is-spectator .lineup-panel,
+.is-spectator .field-slot {
+  pointer-events: none;
+}
+
+.is-spectator .toolbar-actions button {
+  display: none;
+}
+
+/* ── Teste: somente visualização ── */
+.is-spectator .teste-setup,
+.is-spectator .teste-atbat-actions,
+.is-spectator #testeAddBatter,
+.is-spectator #testeResetAll,
+.is-spectator #testeSalvar,
+.is-spectator .teste-batter-remove {
+  display: none;
+}
+
+.is-spectator .teste-batter-item {
+  pointer-events: none;
+}
+
+.is-spectator #testePitchWrapper {
+  pointer-events: none;
+  opacity: 0.75;
+}
 
 /* ── Adversário: inputs inline na tabela ── */
 

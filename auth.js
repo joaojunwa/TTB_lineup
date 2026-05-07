@@ -46,11 +46,6 @@ function checkAuth(adminOnly = false) {
 
   const page = window.location.pathname.split("/").pop() || "index.html";
 
-  if (isSpectator() && page !== "status.html") {
-    window.location.replace("status.html");
-    return false;
-  }
-
   if (adminOnly && !isAdmin()) {
     window.location.replace("status.html");
     return false;
