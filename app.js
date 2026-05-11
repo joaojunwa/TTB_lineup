@@ -883,6 +883,339 @@ function exportAssignments() {
   };
 }
 
+/* ═══════════════════════════════
+   EXPORT COMO IMAGEM
+═══════════════════════════════ */
+
+async function _loadImg(src) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload  = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
+function _canvasTruncate(ctx, text, maxW) {
+  if (ctx.measureText(text).width <= maxW) return text;
+  let t = text;
+  while (t.length && ctx.measureText(t + "…").width > maxW) t = t.slice(0, -1);
+  return t + "…";
+}
+
+async function exportLineupImage() {
+  if (exportButton) {
+    exportButton.disabled = true;
+    exportButton.textContent = "Gerando…";
+  }
+  try {
+    const slots = [
+      ...positions,
+      ...(dhEnabled ? [{ ...dhPosition, x: 8, y: 82 }] : []),
+    ];
+
+    /* Pré-carrega fotos */
+    const imgCache = {};
+    await Promise.all(slots.map(async (pos) => {
+      const pid    = pos.id === "DH" ? dhAssignment : assignments[pos.id];
+      const player = getPlayer(pid);
+      if (player?.photo) {
+        const img = await _loadImg(player.photo);
+        if (img) imgCache[player.id] = img;
+      }
+    }));
+
+    const FW = 640, LW = 440, H = 640;
+    const canvas  = document.createElement("canvas");
+    canvas.width  = FW + LW;
+    canvas.height = H;
+    const ctx = canvas.getContext("2d");
+
+    _exportField(ctx, FW, H, slots, imgCache);
+    _exportPanel(ctx, FW, LW, H);
+
+    canvas.toBlob((blob) => {
+      const url  = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href     = url;
+      link.download = "lineup-ttb.png";
+      link.click();
+      URL.revokeObjectURL(url);
+    }, "image/png");
+  } catch (err) {
+    console.error("Erro ao exportar imagem:", err);
+  } finally {
+    if (exportButton) {
+      exportButton.disabled = false;
+      exportButton.innerHTML =
+        '<span class="label-full">Exportar</span><span class="label-short">Export.</span>';
+    }
+  }
+}
+
+function _exportField(ctx, fw, h, slots, imgCache) {
+  /* Grama */
+  ctx.fillStyle = "#347a4d";
+  ctx.fillRect(0, 0, fw, h);
+  const sw = fw / 9;
+  ctx.fillStyle = "#2e6b40";
+  for (let i = 0; i < 9; i += 2) ctx.fillRect(i * sw, 0, sw, h);
+
+  /* Coordenadas das bases */
+  const hx = fw * 0.52, hy = h * 0.90;
+  const f1x = fw * 0.82, f1y = h * 0.62;
+  const f2x = fw * 0.52, f2y = h * 0.33;
+  const f3x = fw * 0.20, f3y = h * 0.62;
+
+  /* Arco do outfield — semicírculo centrado no home plate */
+  const arcR = h * 0.70;
+  ctx.beginPath();
+  ctx.arc(hx, hy, arcR, (5 * Math.PI) / 4, (7 * Math.PI) / 4);
+  ctx.strokeStyle = "rgba(255,255,255,0.3)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  /* Linhas de foul */
+  ctx.strokeStyle = "rgba(255,255,255,0.5)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(-60, -60); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(hx, hy); ctx.lineTo(fw + 60, -60); ctx.stroke();
+
+  /* Infield (terra) */
+  ctx.beginPath();
+  ctx.moveTo(hx, hy);
+  ctx.lineTo(f1x, f1y);
+  ctx.lineTo(f2x, f2y);
+  ctx.lineTo(f3x, f3y);
+  ctx.closePath();
+  ctx.fillStyle = "#b07040";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.4)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  /* Loma do pitcher */
+  ctx.beginPath();
+  ctx.arc(fw * 0.52, h * 0.62, 15, 0, Math.PI * 2);
+  ctx.fillStyle = "#9e6535";
+  ctx.fill();
+
+  /* Bases */
+  [[hx, hy], [f1x, f1y], [f2x, f2y], [f3x, f3y]].forEach(([bx, by]) => {
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(Math.PI / 4);
+    const bs = 11;
+    ctx.fillStyle = "#fffbe7";
+    ctx.fillRect(-bs / 2, -bs / 2, bs, bs);
+    ctx.strokeStyle = "#0d1520";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(-bs / 2, -bs / 2, bs, bs);
+    ctx.restore();
+  });
+
+  /* Tokens dos jogadores */
+  slots.forEach((pos) => {
+    const pid    = pos.id === "DH" ? dhAssignment : assignments[pos.id];
+    const player = getPlayer(pid);
+    const px = fw * pos.x / 100;
+    const py = h  * pos.y / 100;
+    if (player) {
+      _exportToken(ctx, px, py, pos.short, player, imgCache[player.id] ?? null);
+    } else {
+      _exportEmptyToken(ctx, px, py, pos.short);
+    }
+  });
+}
+
+function _exportToken(ctx, x, y, posShort, player, img) {
+  const r = 26;
+
+  /* Sombra */
+  ctx.shadowColor   = "rgba(0,0,0,0.6)";
+  ctx.shadowBlur    = 8;
+  ctx.shadowOffsetY = 2;
+
+  /* Círculo */
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = "#1e2d3d";
+  ctx.fill();
+  ctx.strokeStyle = "#f6c347";
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur  = 0;
+  ctx.shadowOffsetY = 0;
+
+  /* Foto ou iniciais */
+  if (img) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, r - 2.5, 0, Math.PI * 2);
+    ctx.clip();
+    const ir = r - 2.5;
+    ctx.drawImage(img, x - ir, y - ir, ir * 2, ir * 2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = "#f6c347";
+    ctx.font = "bold 13px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(playerInitials(player.name) || "?", x, y);
+  }
+
+  /* Badge de posição */
+  const br = 10, bx = x + r * 0.66, by = y - r * 0.66;
+  ctx.beginPath();
+  ctx.arc(bx, by, br, 0, Math.PI * 2);
+  ctx.fillStyle = "#0d1520";
+  ctx.fill();
+  ctx.strokeStyle = "#f6c347";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  ctx.fillStyle = "#f6c347";
+  ctx.font = "bold 7px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(posShort, bx, by);
+
+  /* Nome e número */
+  ctx.shadowColor = "rgba(0,0,0,0.9)";
+  ctx.shadowBlur  = 3;
+  ctx.fillStyle   = "#fff";
+  ctx.font = "bold 11px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText(_canvasTruncate(ctx, player.name, 90), x, y + r + 4);
+  ctx.fillStyle = "rgba(255,255,255,0.55)";
+  ctx.font = "9px system-ui, sans-serif";
+  ctx.fillText(player.number ? `#${player.number}` : "", x, y + r + 17);
+  ctx.shadowColor = "transparent";
+  ctx.shadowBlur  = 0;
+}
+
+function _exportEmptyToken(ctx, x, y, posShort) {
+  const r = 23;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = "rgba(255,255,255,0.28)";
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(255,255,255,0.28)";
+  ctx.font = "bold 10px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(posShort, x, y);
+}
+
+function _exportPanel(ctx, offsetX, pw, h) {
+  /* Fundo */
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(offsetX, 0, pw, h);
+
+  /* Cabeçalho */
+  ctx.fillStyle = "#1a2638";
+  ctx.fillRect(offsetX, 0, pw, 58);
+
+  /* Barra gradiente */
+  const g = ctx.createLinearGradient(offsetX, 0, offsetX + pw, 0);
+  g.addColorStop(0, "#d43a22");
+  g.addColorStop(1, "#f6c347");
+  ctx.fillStyle = g;
+  ctx.fillRect(offsetX, 0, pw, 3);
+
+  /* Título */
+  ctx.fillStyle = "#f6c347";
+  ctx.font = "bold 20px system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("LINE UP", offsetX + pw / 2, 22);
+
+  const hoje = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" });
+  ctx.fillStyle = "rgba(240,234,216,0.4)";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.fillText(hoje, offsetX + pw / 2, 44);
+
+  /* Lista de rebatedores */
+  const batters = getBattingOrder();
+  if (!batters.length) {
+    ctx.fillStyle = "rgba(240,234,216,0.35)";
+    ctx.font = "14px system-ui, sans-serif";
+    ctx.fillText("Lineup vazio", offsetX + pw / 2, h / 2);
+    return;
+  }
+
+  const listTop = 66, listBot = h - 30;
+  const rowH = Math.min(54, (listBot - listTop) / batters.length);
+  const padX = 14;
+
+  batters.forEach((b, i) => {
+    const ry  = listTop + i * rowH;
+    const mid = ry + rowH / 2;
+
+    /* Linha alternada */
+    if (i % 2 === 0) {
+      ctx.fillStyle = "rgba(255,255,255,0.03)";
+      ctx.fillRect(offsetX, ry, pw, rowH);
+    }
+
+    /* Bola com número */
+    const nbx = offsetX + padX + 16;
+    ctx.beginPath();
+    ctx.arc(nbx, mid, 16, 0, Math.PI * 2);
+    ctx.fillStyle = "#f6c347";
+    ctx.fill();
+    ctx.fillStyle = "#0d1520";
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(String(b.battingOrder || i + 1), nbx, mid);
+
+    /* Nome */
+    const nameX  = offsetX + padX + 40;
+    const maxW   = pw - padX * 2 - 78;
+    ctx.fillStyle = "#f0ead8";
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(_canvasTruncate(ctx, b.name, maxW), nameX, mid - 7);
+
+    /* Posição + número */
+    const detail = [b.role, b.number ? `#${b.number}` : ""].filter(Boolean).join("  ·  ");
+    ctx.fillStyle = "rgba(140,158,181,0.9)";
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillText(_canvasTruncate(ctx, detail, maxW), nameX, mid + 8);
+
+    /* Círculo de iniciais (direita) */
+    const icx = offsetX + pw - padX - 18;
+    ctx.beginPath();
+    ctx.arc(icx, mid, 17, 0, Math.PI * 2);
+    ctx.fillStyle = "#1e2d3d";
+    ctx.fill();
+    ctx.strokeStyle = "#f6c347";
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    ctx.fillStyle = "#f6c347";
+    ctx.font = "bold 10px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(playerInitials(b.name), icx, mid);
+  });
+
+  /* Indicador DH */
+  if (dhEnabled) {
+    ctx.fillStyle = "#60d2c8";
+    ctx.font = "italic 11px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("★ Modo DH ativo", offsetX + pw / 2, h - 8);
+  }
+}
+
 function render() {
   if (PAGE !== "lineup") return;
   renderField();
@@ -941,9 +1274,7 @@ if (PAGE === "lineup") {
   });
 
   exportButton.addEventListener("click", () => {
-    exportOutput.value = JSON.stringify(exportAssignments(), null, 2);
-    exportDialog.showModal();
-    exportOutput.select();
+    exportLineupImage();
   });
 
   selectedPlayer.addEventListener("dragstart", (event) => {
