@@ -774,6 +774,15 @@ h1 {
   color: var(--accent);
 }
 
+.roster-group.is-banco .lineup-empty-hint {
+  border-color: rgba(96, 210, 200, 0.3);
+  color: #60d2c8;
+}
+
+.roster-group.is-banco.is-drop-hover .lineup-empty-hint {
+  border-color: #60d2c8;
+}
+
 .lineup-remove-btn {
   position: absolute;
   top: 3px;
@@ -3198,6 +3207,91 @@ details[open] .historico-summary::before {
 }
 
 .btn-logout:hover { color: #f87171; border-color: #5c2e2e; }
+
+/* ── DH slot no campo ── */
+.dh-field-slot {
+  border-color: rgba(96, 210, 200, 0.6) !important;
+}
+
+.dh-field-slot.is-filled .player-chip strong {
+  background: #0e6b6b;
+}
+
+.dh-field-slot.is-empty .empty-position {
+  background: rgba(96, 210, 200, 0.18);
+  border-color: rgba(96, 210, 200, 0.5);
+  color: #60d2c8;
+}
+
+/* ── Banco section ── */
+.roster-group.is-banco {
+  min-height: 44px;
+}
+
+.drag-active .roster-group.is-banco {
+  outline: 1px dashed rgba(96, 210, 200, 0.3);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.roster-group.is-banco h3 {
+  color: #60d2c8;
+}
+
+.roster-group.is-banco.is-drop-hover {
+  outline: 2px dashed rgba(96, 210, 200, 0.7);
+  outline-offset: 4px;
+  border-radius: 8px;
+  background: rgba(96, 210, 200, 0.05);
+}
+
+.roster-group.is-banco .roster-grid {
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+
+.roster-group.is-banco .roster-player {
+  grid-template-columns: 34px minmax(0, 1fr) 56px;
+  min-height: 44px;
+  padding: 5px 8px;
+}
+
+.roster-group.is-banco .roster-photo {
+  width: 32px;
+  height: 32px;
+}
+
+.roster-group.is-banco .roster-name { font-size: 0.84rem; }
+
+.roster-group.is-banco .roster-status,
+.roster-group.is-banco .roster-number {
+  font-size: 0.66rem;
+  line-height: 1.05;
+}
+
+/* ── Campo de busca ── */
+.roster-search-wrap {
+  padding: 0 0 8px;
+}
+
+.roster-search {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #f0ead8;
+  padding: 7px 10px;
+  font-size: 0.84rem;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.roster-search::placeholder { color: var(--text-muted); }
+
+.roster-search:focus {
+  border-color: rgba(246, 195, 71, 0.6);
+  background: rgba(246, 195, 71, 0.06);
+}
 
 /* ── Botão Salvar Line Up ── */
 #saveLineup {

@@ -25,6 +25,8 @@ let dhEnabled = false;
 let dhAssignment = "";
 let draggedPlayerId = "";
 let lineupPending = new Set();
+let bancoPlayers = new Set();
+let rosterSearchTerm = "";
 
 function saveLineupState() {
   try {
@@ -32,6 +34,7 @@ function saveLineupState() {
       assignments,
       battingOrders,
       lineupPending: [...lineupPending],
+      bancoPlayers:  [...bancoPlayers],
       dhEnabled,
       dhAssignment,
     }));
@@ -47,6 +50,7 @@ function loadLineupState() {
     if (s.assignments)   assignments   = s.assignments;
     if (s.battingOrders) battingOrders = s.battingOrders;
     if (s.lineupPending) lineupPending = new Set(s.lineupPending);
+    if (s.bancoPlayers)  bancoPlayers  = new Set(s.bancoPlayers);
     dhEnabled    = s.dhEnabled    ?? false;
     dhAssignment = s.dhAssignment ?? "";
   } catch (_) {}
@@ -150,6 +154,7 @@ function assignPlayerToPosition(playerId, positionId) {
 
   if (!isLineupPlayer(playerId) && getActiveBatterIds().length >= 9) return;
 
+  bancoPlayers.delete(playerId);
   selectedPlayerId = playerId;
 
   if (positionId === dhPosition.id) {
@@ -274,12 +279,56 @@ function addLineupDropTarget(element) {
 function addToLineup(playerId) {
   if (!playerId || isLineupPlayer(playerId)) return;
   if (getActiveBatterIds().length >= 9) return;
+  bancoPlayers.delete(playerId);
   lineupPending.add(playerId);
   if (!battingOrders[playerId]) {
     battingOrders[playerId] = getNextOpenBattingOrder();
   }
   selectedPlayerId = playerId;
   render();
+}
+
+function addToBanco(playerId) {
+  if (!playerId || isLineupPlayer(playerId) || bancoPlayers.has(playerId)) return;
+  bancoPlayers.add(playerId);
+  selectedPlayerId = playerId;
+  render();
+}
+
+function removeFromBanco(playerId) {
+  bancoPlayers.delete(playerId);
+  if (selectedPlayerId === playerId) selectedPlayerId = "";
+  render();
+}
+
+function addBancoDropTarget(element) {
+  element.addEventListener("dragover", (event) => {
+    const playerId = getDraggedPlayerId(event);
+    if (!playerId || isLineupPlayer(playerId)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+    element.classList.add("is-drop-hover");
+  });
+  element.addEventListener("dragleave", (event) => {
+    if (!element.contains(event.relatedTarget)) {
+      element.classList.remove("is-drop-hover");
+    }
+  });
+  element.addEventListener("drop", (event) => {
+    const playerId = getDraggedPlayerId(event);
+    if (!playerId || isLineupPlayer(playerId)) return;
+    event.preventDefault();
+    element.classList.remove("is-drop-hover");
+    addToBanco(playerId);
+  });
+}
+
+function matchesSearch(player, term) {
+  if (!term) return true;
+  return (
+    player.name.toLowerCase().includes(term) ||
+    String(player.number).includes(term)
+  );
 }
 
 function removeFromLineup(playerId) {
@@ -428,6 +477,44 @@ function renderField() {
 
     fieldSlots.append(slot);
   });
+
+  /* ── Slot do DH no canto inferior esquerdo ── */
+  if (dhEnabled) {
+    const dhPlayer = getPlayer(dhAssignment);
+    const dhSlot = document.createElement("button");
+    dhSlot.className = `field-slot dh-field-slot ${dhPlayer ? "is-filled" : "is-empty"}`;
+    dhSlot.type = "button";
+    dhSlot.draggable = Boolean(dhPlayer);
+    dhSlot.style.left = "8%";
+    dhSlot.style.top = "82%";
+    dhSlot.dataset.position = dhPosition.id;
+    dhSlot.setAttribute(
+      "aria-label",
+      dhPlayer ? `DH: ${dhPlayer.name}` : "DH: vazio, clique para colocar o jogador selecionado",
+    );
+    dhSlot.innerHTML = dhPlayer
+      ? `
+          <img class="player-photo" alt="Foto de ${escapeHtml(dhPlayer.name)}" src="${escapeHtml(dhPlayer.photo)}" />
+          <span class="player-chip">
+            <strong>${escapeHtml(dhPosition.short)}</strong>
+            <span>${escapeHtml(dhPlayer.name)}</span>
+            <em>${dhPlayer.number ? `#${escapeHtml(dhPlayer.number)}` : "sem numero"}</em>
+          </span>
+        `
+      : `
+          <span class="empty-position">${escapeHtml(dhPosition.short)}</span>
+          <span class="empty-label">${escapeHtml(dhPosition.label)}</span>
+        `;
+    dhSlot.addEventListener("click", () => assignSelectedPlayer(dhPosition.id));
+    addDropTarget(dhSlot, dhPosition.id);
+    if (dhPlayer) {
+      addFallback(dhSlot.querySelector("img"), dhPlayer);
+      dhSlot.addEventListener("dragstart", (event) => beginDrag(event, dhPlayer.id));
+      dhSlot.addEventListener("dragend", endDrag);
+      dhSlot.querySelector("img").draggable = false;
+    }
+    fieldSlots.append(dhSlot);
+  }
 }
 
 function renderSelectedPlayer() {
@@ -479,19 +566,32 @@ function renderRoster() {
   playerRoster.innerHTML = "";
   rosterCount.textContent = `${roster.length} players`;
 
+  const term = rosterSearchTerm.trim().toLowerCase();
+
   getRosterSections().forEach(({ groupName, players }) => {
+    const filtered = term ? players.filter((p) => matchesSearch(p, term)) : players;
+
+    /* Oculta seções sem resultado durante busca (exceto Lineup sempre visível) */
+    if (term && filtered.length === 0 && groupName !== "Lineup") return;
+
+    const groupClass =
+      groupName === "Lineup" ? "is-lineup" :
+      groupName === "Banco"  ? "is-banco"  : "is-elenco";
+
     const group = document.createElement("section");
-    group.className = `roster-group ${groupName === "Lineup" ? "is-lineup" : "is-elenco"}`;
+    group.className = `roster-group ${groupClass}`;
     group.innerHTML = `<h3>${escapeHtml(groupName)}</h3>`;
 
     if (groupName === "Lineup") {
       addLineupDropTarget(group);
+    } else if (groupName === "Banco") {
+      addBancoDropTarget(group);
     }
 
     const grid = document.createElement("div");
     grid.className = "roster-grid";
 
-    players.forEach((player) => {
+    filtered.forEach((player) => {
       const assignedPosition = getAssignedPosition(player.id);
       const card = document.createElement("article");
       card.className = `roster-player ${player.id === selectedPlayerId ? "is-selected" : ""}`;
@@ -513,10 +613,7 @@ function renderRoster() {
         render();
       });
       card.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-
+        if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         selectedPlayerId = player.id;
         render();
@@ -525,7 +622,6 @@ function renderRoster() {
       card.addEventListener("dragend", endDrag);
 
       const select = card.querySelector("select");
-
       if (select) {
         select.addEventListener("click", (event) => event.stopPropagation());
         select.addEventListener("change", (event) => {
@@ -540,7 +636,6 @@ function renderRoster() {
 
       if (groupName === "Lineup") {
         card.dataset.playerId = player.id;
-
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "lineup-remove-btn";
@@ -551,6 +646,17 @@ function renderRoster() {
           removeFromLineup(player.id);
         });
         card.append(removeBtn);
+      } else if (groupName === "Banco") {
+        const removeBtn = document.createElement("button");
+        removeBtn.type = "button";
+        removeBtn.className = "lineup-remove-btn";
+        removeBtn.setAttribute("aria-label", `Remover ${escapeHtml(player.name)} do banco`);
+        removeBtn.textContent = "×";
+        removeBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeFromBanco(player.id);
+        });
+        card.append(removeBtn);
       }
 
       grid.append(card);
@@ -558,12 +664,16 @@ function renderRoster() {
 
     group.append(grid);
 
-    if (groupName === "Lineup" && players.length === 0) {
+    if (filtered.length === 0 && !term) {
       const hint = document.createElement("p");
       hint.className = "lineup-empty-hint";
-      hint.textContent = "Arraste jogadores do elenco para o lineup";
+      hint.textContent =
+        groupName === "Banco"
+          ? "Arraste jogadores do elenco para o banco"
+          : "Arraste jogadores do elenco para o lineup";
       group.append(hint);
     }
+
     playerRoster.append(group);
   });
 }
@@ -599,12 +709,20 @@ function getRosterSections() {
     .sort((first, second) => getLineupSortOrder(first) - getLineupSortOrder(second));
 
   const lineupIds = new Set(lineupCards.map((player) => player.id));
+
+  const bancoCards = roster
+    .filter((player) => bancoPlayers.has(player.id) && !lineupIds.has(player.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const bancoIds = new Set(bancoCards.map((player) => player.id));
+
   const benchCards = roster
-    .filter((player) => !lineupIds.has(player.id))
+    .filter((player) => !lineupIds.has(player.id) && !bancoIds.has(player.id))
     .sort((first, second) => first.name.localeCompare(second.name));
 
   return [
     { groupName: "Lineup", players: lineupCards },
+    { groupName: "Banco", players: bancoCards },
     { groupName: "Elenco", players: benchCards },
   ];
 }
@@ -782,11 +900,17 @@ function setLineupPanelCollapsed(collapsed) {
 }
 
 if (PAGE === "lineup") {
+  document.querySelector("#rosterSearch")?.addEventListener("input", (event) => {
+    rosterSearchTerm = event.currentTarget.value;
+    renderRoster();
+  });
+
   clearButton.addEventListener("click", () => {
     assignments = buildEmptyAssignments();
     dhAssignment = "";
     battingOrders = {};
     lineupPending.clear();
+    bancoPlayers.clear();
     render();
   });
 

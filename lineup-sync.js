@@ -84,12 +84,14 @@ function _applyState(state) {
     assignments   = buildEmptyAssignments();
     battingOrders = {};
     lineupPending = new Set();
+    bancoPlayers  = new Set();
     dhEnabled     = false;
     dhAssignment  = "";
   } else {
     if (state.assignments)   assignments   = state.assignments;
     if (state.battingOrders) battingOrders = state.battingOrders;
     if (state.lineupPending) lineupPending = new Set(state.lineupPending);
+    if (state.bancoPlayers)  bancoPlayers  = new Set(state.bancoPlayers);
     dhEnabled    = state.dhEnabled    ?? false;
     dhAssignment = state.dhAssignment ?? "";
   }
