@@ -1,13 +1,40 @@
 /* ── Lineup Sync — salva o lineup de cada jogador e permite ver o de outros ── */
 
-let _syncTimer   = null;
-let _viewingUser = null; /* null = vendo meu próprio lineup */
+let _viewingUser       = null; /* null = vendo meu próprio lineup */
+let _hasUnsavedChanges = false;
 
-/* ── Chamado por saveLineupState() no app.js após cada mudança ── */
+/* ── Chamado por saveLineupState() no app.js após cada mudança ──
+   Apenas marca como não-salvo; não envia ao Supabase automaticamente. */
 function autosaveLineup() {
   if (_viewingUser !== null || !isAdmin()) return;
-  clearTimeout(_syncTimer);
-  _syncTimer = setTimeout(_doSaveLineup, 1500);
+  _hasUnsavedChanges = true;
+  _updateSaveButton();
+}
+
+/* ── Atualiza visual do botão de salvar ── */
+function _updateSaveButton() {
+  const btn = document.getElementById("saveLineup");
+  if (!btn) return;
+  btn.classList.toggle("has-unsaved", _hasUnsavedChanges);
+}
+
+/* ── Publicar lineup para outros verem (chamado pelo botão "Salvar Line Up") ── */
+async function publishLineup() {
+  if (_viewingUser !== null || !isAdmin()) return;
+  const btn = document.getElementById("saveLineup");
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Salvando...";
+  }
+  await _doSaveLineup();
+  _hasUnsavedChanges = false;
+  if (btn) {
+    btn.disabled = false;
+    btn.innerHTML = '<span class="label-full">Salvar Line Up</span><span class="label-short">Salvar</span>';
+    btn.classList.remove("has-unsaved");
+    btn.classList.add("is-saved");
+    setTimeout(() => btn.classList.remove("is-saved"), 2000);
+  }
 }
 
 async function _doSaveLineup() {
@@ -130,6 +157,14 @@ function _renderSwitcher() {
 /* ── Init ── */
 document.addEventListener("DOMContentLoaded", () => {
   if (document.documentElement.dataset.page !== "lineup") return;
+
+  /* Mostra e conecta o botão "Salvar Line Up" apenas para admins */
+  const saveBtn = document.getElementById("saveLineup");
+  if (saveBtn && isAdmin()) {
+    saveBtn.hidden = false;
+    saveBtn.addEventListener("click", publishLineup);
+  }
+
   _renderSwitcher();
   /* Re-renderiza após os perfis online carregarem */
   getAdminProfilesOnline().then(() => _renderSwitcher()).catch(() => {});
