@@ -69,8 +69,6 @@ const dhMode = document.querySelector("#dhMode");
 const clearButton = document.querySelector("#clearField");
 const resetButton = document.querySelector("#resetLineup");
 const exportButton = document.querySelector("#exportLineup");
-const exportDialog = document.querySelector("#exportDialog");
-const exportOutput = document.querySelector("#exportOutput");
 
 function buildRoster(lineupPlayers, benchPlayers) {
   const lineupList = lineupPlayers.map((player, index) => ({
@@ -793,9 +791,20 @@ function renderOrderSelect(player) {
   const activeBatterIds = getActiveBatterIds();
   const maxOrder = activeBatterIds.length || 0;
   const currentOrder = battingOrders[player.id] || getPitcherBattingOrder();
-  if (!maxOrder) {
-    return "";
+  if (!maxOrder) return "";
+
+  const isReadOnly =
+    isSpectator() ||
+    document.body.classList.contains("is-viewing-other");
+
+  if (isReadOnly) {
+    return `
+      <span class="batting-order-badge" aria-label="Ordem de rebatida: ${currentOrder}">
+        ${currentOrder}°
+      </span>
+    `;
   }
+
   const options = Array.from({ length: maxOrder }, (_, index) => {
     const order = index + 1;
     return `<option value="${order}" ${order === currentOrder ? "selected" : ""}>${order}</option>`;

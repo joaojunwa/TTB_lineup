@@ -111,6 +111,10 @@ async function switchToUser(username) {
     document.body.classList.add("is-viewing-other");
     const state = await _loadUserLineup(_viewingUser);
     _applyState(state);
+    /* Abre o painel automaticamente para espectadores e admins visualizando */
+    if (typeof setLineupPanelCollapsed === "function") {
+      setLineupPanelCollapsed(false);
+    }
   }
 
   _renderSwitcher();

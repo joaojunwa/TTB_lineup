@@ -720,6 +720,21 @@ h1 {
   text-transform: uppercase;
 }
 
+.batting-order-badge {
+  grid-area: order;
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(246, 195, 71, 0.15);
+  border: 1px solid rgba(246, 195, 71, 0.4);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .batting-order-control select {
   width: 100%;
   min-height: 38px;
@@ -3533,18 +3548,33 @@ details[open] .historico-summary::before {
 .is-spectator #pitchZoneWrapper { opacity: 0.75; }
 
 /* ── Lineup: somente visualização ── */
-.is-spectator #drawerToggle,
 .is-spectator #clearField,
 .is-spectator #resetLineup,
 .is-spectator #exportLineup,
+.is-spectator #saveLineup,
 .is-spectator #drawerClose,
-.is-spectator .lineup-panel,
-.is-spectator .field-slot {
+.is-spectator .field-slot,
+.is-spectator .lineup-remove-btn,
+.is-spectator .batting-order-control select {
   pointer-events: none;
 }
 
-.is-spectator .toolbar-actions button {
+/* Esconde botões de edição, mantém Sair e Jogadores visíveis */
+.is-spectator #clearField,
+.is-spectator #resetLineup,
+.is-spectator #exportLineup,
+.is-spectator #saveLineup,
+.is-spectator #drawerClose,
+.is-spectator .lineup-remove-btn {
   display: none;
+}
+
+/* Painel de jogadores: visível mas somente leitura */
+.is-spectator .lineup-panel {
+  pointer-events: none;
+}
+.is-spectator #drawerToggle {
+  pointer-events: auto;
 }
 
 /* ── Teste: somente visualização ── */

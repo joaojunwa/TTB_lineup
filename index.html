@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulador de Lineup de Baseball</title>
     <link rel="stylesheet" href="styles.css" />
-    <script src="auth.js"></script>
+    <script src="auth.js?v=3"></script>
     <script>checkAuth();</script>
   </head>
   <body>
@@ -110,18 +110,8 @@
 
     </main>
 
-    <dialog id="exportDialog">
-      <form method="dialog">
-        <div class="dialog-header">
-          <h2>Lineup em JSON</h2>
-          <button class="icon-button" value="close" aria-label="Fechar">x</button>
-        </div>
-        <textarea id="exportOutput" readonly></textarea>
-      </form>
-    </dialog>
-
-    <script src="lineup-data.js"></script>
-    <script src="app.js"></script>
-    <script src="lineup-sync.js"></script>
+    <script src="lineup-data.js?v=3"></script>
+    <script src="app.js?v=3"></script>
+    <script src="lineup-sync.js?v=3"></script>
   </body>
 </html>

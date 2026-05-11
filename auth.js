@@ -181,10 +181,10 @@ async function removeAdminProfile(login) {
   return true;
 }
 
-/* Leitura */
+/* Leitura — auth usa sessionStorage: expira ao fechar o browser */
 function getAuth() {
   try {
-    return JSON.parse(localStorage.getItem(AUTH_KEY));
+    return JSON.parse(sessionStorage.getItem(AUTH_KEY));
   } catch {
     return null;
   }
@@ -200,7 +200,7 @@ function isSuperAdmin() { return isAdmin() && normalizeLogin(getUser()) === SUPE
 async function loginAdmin(user, birthday) {
   const profile = await findAdminProfileOnline(user);
   if (profile && profile.birthday === normalizeBirthday(birthday)) {
-    localStorage.setItem(AUTH_KEY, JSON.stringify({
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify({
       role: "admin",
       user: profile.login,
       owner: Boolean(profile.owner),
@@ -212,12 +212,12 @@ async function loginAdmin(user, birthday) {
 
 function loginSpectator(name) {
   if (!name?.trim()) return false;
-  localStorage.setItem(AUTH_KEY, JSON.stringify({ role: "spectator", user: name.trim() }));
+  sessionStorage.setItem(AUTH_KEY, JSON.stringify({ role: "spectator", user: name.trim() }));
   return true;
 }
 
 function logout() {
-  localStorage.removeItem(AUTH_KEY);
+  sessionStorage.removeItem(AUTH_KEY);
   window.location.replace("login.html");
 }
 
