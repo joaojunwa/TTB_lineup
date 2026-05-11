@@ -174,4 +174,19 @@ document.addEventListener("DOMContentLoaded", () => {
   _renderSwitcher();
   /* Re-renderiza após os perfis online carregarem */
   getAdminProfilesOnline().then(() => _renderSwitcher()).catch(() => {});
+
+  /* Fallback: se localStorage estiver vazio, tenta carregar do Supabase */
+  if (isAdmin()) {
+    const u = getUser();
+    const localRaw = localStorage.getItem("ttb_lineup_" + u);
+    if (!localRaw) {
+      _loadUserLineup(u).then((state) => {
+        if (state) {
+          _applyState(state);
+          _hasUnsavedChanges = false;
+          _updateSaveButton();
+        }
+      }).catch(() => {});
+    }
+  }
 });

@@ -1296,6 +1296,7 @@ if (PAGE === "lineup") {
 
   selectedPlayer.addEventListener("dragend", endDrag);
 
+  loadLineupState();
   render();
 }
 
