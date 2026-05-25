@@ -30,6 +30,7 @@ let rosterSearchTerm = "";
 
 function saveLineupState() {
   try {
+    if (document.body.classList.contains("is-viewing-other")) return;
     localStorage.setItem("ttb_lineup_" + getUser(), JSON.stringify({
       assignments,
       battingOrders,
@@ -67,6 +68,7 @@ const lineupPanel = document.querySelector("#lineupPanel");
 const noDhMode = document.querySelector("#noDhMode");
 const dhMode = document.querySelector("#dhMode");
 const clearButton = document.querySelector("#clearField");
+const clearPositionsButton = document.querySelector("#clearPositions");
 const resetButton = document.querySelector("#resetLineup");
 const exportButton = document.querySelector("#exportLineup");
 
@@ -302,7 +304,7 @@ function removeFromBanco(playerId) {
 function addBancoDropTarget(element) {
   element.addEventListener("dragover", (event) => {
     const playerId = getDraggedPlayerId(event);
-    if (!playerId || isLineupPlayer(playerId)) return;
+    if (!playerId) return;
     event.preventDefault();
     if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
     element.classList.add("is-drop-hover");
@@ -314,10 +316,14 @@ function addBancoDropTarget(element) {
   });
   element.addEventListener("drop", (event) => {
     const playerId = getDraggedPlayerId(event);
-    if (!playerId || isLineupPlayer(playerId)) return;
+    if (!playerId) return;
     event.preventDefault();
     element.classList.remove("is-drop-hover");
-    addToBanco(playerId);
+    if (isLineupPlayer(playerId)) {
+      moveLineupPlayerToBanco(playerId);
+    } else {
+      addToBanco(playerId);
+    }
   });
 }
 
@@ -338,6 +344,19 @@ function removeFromLineup(playerId) {
   delete battingOrders[playerId];
   compactBattingOrders();
   if (selectedPlayerId === playerId) selectedPlayerId = "";
+  render();
+}
+
+function moveLineupPlayerToBanco(playerId) {
+  if (!playerId || !isLineupPlayer(playerId)) return;
+  Object.keys(assignments).forEach((key) => {
+    if (assignments[key] === playerId) assignments[key] = "";
+  });
+  if (dhAssignment === playerId) dhAssignment = "";
+  lineupPending.delete(playerId);
+  delete battingOrders[playerId];
+  compactBattingOrders();
+  bancoPlayers.add(playerId);
   render();
 }
 
@@ -634,6 +653,15 @@ function renderRoster() {
 
       if (groupName === "Lineup") {
         card.dataset.playerId = player.id;
+        const toBancoBtn = document.createElement("button");
+        toBancoBtn.type = "button";
+        toBancoBtn.className = "lineup-to-banco-btn";
+        toBancoBtn.setAttribute("aria-label", `Mover ${escapeHtml(player.name)} para o banco`);
+        toBancoBtn.textContent = "B";
+        toBancoBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          moveLineupPlayerToBanco(player.id);
+        });
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
         removeBtn.className = "lineup-remove-btn";
@@ -643,7 +671,7 @@ function renderRoster() {
           event.stopPropagation();
           removeFromLineup(player.id);
         });
-        card.append(removeBtn);
+        card.append(toBancoBtn, removeBtn);
       } else if (groupName === "Banco") {
         const removeBtn = document.createElement("button");
         removeBtn.type = "button";
@@ -1225,6 +1253,18 @@ function _exportPanel(ctx, offsetX, pw, h) {
   }
 }
 
+function clearFieldPositions() {
+  Object.entries(assignments).forEach(([, playerId]) => {
+    if (playerId) lineupPending.add(playerId);
+  });
+  if (dhEnabled && dhAssignment) {
+    lineupPending.add(dhAssignment);
+    dhAssignment = "";
+  }
+  assignments = buildEmptyAssignments();
+  render();
+}
+
 function render() {
   if (PAGE !== "lineup") return;
   renderField();
@@ -1255,6 +1295,8 @@ if (PAGE === "lineup") {
     bancoPlayers.clear();
     render();
   });
+
+  clearPositionsButton?.addEventListener("click", clearFieldPositions);
 
   resetButton.addEventListener("click", () => {
     assignments = buildInitialAssignments();

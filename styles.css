@@ -830,6 +830,44 @@ h1 {
   border-color: rgba(200, 50, 50, 0.7);
 }
 
+.lineup-to-banco-btn {
+  position: absolute;
+  top: 3px;
+  right: 24px;
+  width: 18px;
+  height: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(100, 180, 240, 0.7);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  opacity: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 140ms, background 140ms, color 140ms;
+  z-index: 2;
+}
+
+.roster-player:hover .lineup-to-banco-btn {
+  opacity: 1;
+}
+
+.lineup-to-banco-btn:hover {
+  background: rgba(40, 120, 200, 0.55);
+  color: #fff;
+  border-color: rgba(40, 120, 200, 0.7);
+}
+
+.is-spectator .lineup-to-banco-btn,
+.is-viewing-other .lineup-to-banco-btn {
+  display: none;
+}
+
 .roster-group.is-lineup .roster-player.is-drag-above::before,
 .roster-group.is-lineup .roster-player.is-drag-below::after {
   content: "";
@@ -3561,11 +3599,16 @@ details[open] .historico-summary::before {
 
 /* Esconde botões de edição, mantém Sair e Jogadores visíveis */
 .is-spectator #clearField,
+.is-spectator #clearPositions,
 .is-spectator #resetLineup,
 .is-spectator #exportLineup,
 .is-spectator #saveLineup,
 .is-spectator #drawerClose,
 .is-spectator .lineup-remove-btn {
+  display: none;
+}
+
+.is-viewing-other #clearPositions {
   display: none;
 }
 
