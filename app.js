@@ -28,6 +28,7 @@ let lineupPending = new Set();
 let bancoPlayers = new Set();
 let rosterSearchTerm = "";
 let positionFilter = "";
+let designatedPitcherId = "";
 const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
 let customPlayers = [];
 const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
@@ -69,6 +70,7 @@ function saveLineupState() {
       bancoPlayers:  [...bancoPlayers],
       dhEnabled,
       dhAssignment,
+      designatedPitcherId,
     }));
     if (typeof autosaveLineup === "function") autosaveLineup();
   } catch (_) {}
@@ -83,8 +85,9 @@ function loadLineupState() {
     if (s.battingOrders) battingOrders = s.battingOrders;
     if (s.lineupPending) lineupPending = new Set(s.lineupPending);
     if (s.bancoPlayers)  bancoPlayers  = new Set(s.bancoPlayers);
-    dhEnabled    = s.dhEnabled    ?? false;
-    dhAssignment = s.dhAssignment ?? "";
+    dhEnabled           = s.dhEnabled           ?? false;
+    dhAssignment        = s.dhAssignment        ?? "";
+    designatedPitcherId = s.designatedPitcherId ?? "";
   } catch (_) {}
 }
 
@@ -183,7 +186,8 @@ function assignSelectedPlayer(positionId) {
 function assignPlayerToPosition(playerId, positionId) {
   if (!playerId) return;
 
-  if (!isLineupPlayer(playerId) && getActiveBatterIds().length >= 9) return;
+  /* Pitcher position in DH mode never counts as a batter — skip capacity check */
+  if (!isLineupPlayer(playerId) && !(dhEnabled && positionId === "P") && getActiveBatterIds().length >= 9) return;
 
   bancoPlayers.delete(playerId);
   selectedPlayerId = playerId;
@@ -234,6 +238,22 @@ function assignPlayerToPosition(playerId, positionId) {
   }
 
   assignments[positionId] = playerId;
+
+  /* Track pitcher for DH mode */
+  if (positionId === "P") {
+    if (dhEnabled) {
+      /* Old pitcher (tracked by designatedPitcherId) goes to banco if still in lineupPending */
+      if (designatedPitcherId && lineupPending.has(designatedPitcherId)) {
+        lineupPending.delete(designatedPitcherId);
+        delete battingOrders[designatedPitcherId];
+        bancoPlayers.add(designatedPitcherId);
+      }
+      /* New pitcher never bats */
+      delete battingOrders[playerId];
+    }
+    designatedPitcherId = playerId;
+  }
+
   render();
 }
 
@@ -381,6 +401,7 @@ function removeFromLineup(playerId) {
     if (assignments[key] === playerId) assignments[key] = "";
   });
   if (dhAssignment === playerId) dhAssignment = "";
+  if (designatedPitcherId === playerId) designatedPitcherId = "";
   lineupPending.delete(playerId);
   delete battingOrders[playerId];
   compactBattingOrders();
@@ -394,6 +415,7 @@ function moveLineupPlayerToBanco(playerId) {
     if (assignments[key] === playerId) assignments[key] = "";
   });
   if (dhAssignment === playerId) dhAssignment = "";
+  if (designatedPitcherId === playerId) designatedPitcherId = "";
   lineupPending.delete(playerId);
   delete battingOrders[playerId];
   compactBattingOrders();
@@ -402,9 +424,19 @@ function moveLineupPlayerToBanco(playerId) {
 }
 
 function moveAllToBanco() {
-  roster
-    .filter((p) => !isLineupPlayer(p.id) && !bancoPlayers.has(p.id))
-    .forEach((p) => bancoPlayers.add(p.id));
+  const lineupIds = roster.filter((p) => isLineupPlayer(p.id)).map((p) => p.id);
+  lineupIds.forEach((id) => {
+    Object.keys(assignments).forEach((key) => {
+      if (assignments[key] === id) assignments[key] = "";
+    });
+    if (dhAssignment === id) dhAssignment = "";
+    lineupPending.delete(id);
+    delete battingOrders[id];
+    bancoPlayers.add(id);
+  });
+  designatedPitcherId = "";
+  compactBattingOrders();
+  saveLineupState();
   render();
 }
 
@@ -992,10 +1024,11 @@ function getActiveBatterIds() {
     return batterIds;
   }
 
+  const pitcherExclude = assignments.P || designatedPitcherId;
   return [
     ...new Set(
       batterIds
-        .filter((playerId) => playerId !== assignments.P)
+        .filter((id) => id !== pitcherExclude)
         .concat(dhAssignment ? [dhAssignment] : []),
     ),
   ];
@@ -1440,6 +1473,8 @@ function _exportPanel(ctx, offsetX, pw, h) {
 }
 
 function clearFieldPositions() {
+  /* Remember current pitcher before clearing so they stay excluded from batting in DH mode */
+  if (dhEnabled) designatedPitcherId = assignments.P || designatedPitcherId;
   Object.entries(assignments).forEach(([, playerId]) => {
     if (playerId) lineupPending.add(playerId);
   });
@@ -1476,6 +1511,7 @@ if (PAGE === "lineup") {
   clearButton.addEventListener("click", () => {
     assignments = buildEmptyAssignments();
     dhAssignment = "";
+    designatedPitcherId = "";
     battingOrders = {};
     lineupPending.clear();
     bancoPlayers.clear();
@@ -1488,6 +1524,7 @@ if (PAGE === "lineup") {
     assignments = buildInitialAssignments();
     battingOrders = buildInitialBattingOrders();
     dhAssignment = "";
+    designatedPitcherId = "";
     lineupPending.clear();
     selectedPlayerId = roster[0]?.id ?? "";
     render();
