@@ -126,11 +126,13 @@ function renderStatsPage() {
   players = _sortPlayers(players, stats);
 
   /* ── Team totals ── */
-  let teamH = 0, teamAb = 0;
+  let teamH = 0, teamAb = 0, teamBb = 0, teamK = 0;
   players.forEach((p) => {
     const s = stats[p.id] || {};
     teamH  += s.h  || 0;
     teamAb += s.ab || 0;
+    teamBb += s.bb || 0;
+    teamK  += s.k  || 0;
   });
 
   tbody.innerHTML = "";
@@ -215,13 +217,29 @@ function renderStatsPage() {
     hInput.dataset.field = "h";
     tdH.append(hInput);
 
+    /* BB input */
+    const tdBb = document.createElement("td");
+    tdBb.className = "stats-td-num";
+    const bbInput = _makeStatInput("BB de " + player.name, s.bb || 0, canEdit);
+    bbInput.dataset.playerId = id;
+    bbInput.dataset.field = "bb";
+    tdBb.append(bbInput);
+
+    /* K input */
+    const tdK = document.createElement("td");
+    tdK.className = "stats-td-num";
+    const kInput = _makeStatInput("K de " + player.name, s.k || 0, canEdit);
+    kInput.dataset.playerId = id;
+    kInput.dataset.field = "k";
+    tdK.append(kInput);
+
     /* AVG cell */
     const tdAvg = document.createElement("td");
     tdAvg.className = `stats-td-avg ${_avgClass(s.h, s.ab)}`;
     tdAvg.dataset.avgFor = id;
     tdAvg.textContent = _fmtAvg(s.h, s.ab);
 
-    tr.append(tdRank, tdPlayer, tdAb, tdH, tdAvg);
+    tr.append(tdRank, tdPlayer, tdAb, tdH, tdBb, tdK, tdAvg);
     tbody.append(tr);
 
     /* Input handlers */
@@ -231,7 +249,7 @@ function renderStatsPage() {
       e.target.value = val;
 
       const all = _loadAllStats();
-      if (!all[id]) all[id] = { h: 0, ab: 0 };
+      if (!all[id]) all[id] = { h: 0, ab: 0, bb: 0, k: 0 };
       all[id][field] = val;
 
       /* H can't exceed AB */
@@ -243,7 +261,6 @@ function renderStatsPage() {
       } else {
         hInput.classList.remove("stats-input-invalid");
         hInput.title = "";
-        /* Only save when data is valid */
         all[id].h  = currentH;
         all[id].ab = currentAb;
         _saveAllStats(all);
@@ -257,6 +274,8 @@ function renderStatsPage() {
 
     abInput.addEventListener("change", onInputChange);
     hInput.addEventListener("change", onInputChange);
+    bbInput.addEventListener("change", onInputChange);
+    kInput.addEventListener("change", onInputChange);
   });
 
   /* ── Totals row ── */
@@ -273,10 +292,16 @@ function renderStatsPage() {
     const tdTotalH = document.createElement("td");
     tdTotalH.className = "stats-td-num";
     tdTotalH.textContent = teamH;
+    const tdTotalBb = document.createElement("td");
+    tdTotalBb.className = "stats-td-num";
+    tdTotalBb.textContent = teamBb;
+    const tdTotalK = document.createElement("td");
+    tdTotalK.className = "stats-td-num";
+    tdTotalK.textContent = teamK;
     const tdTotalAvg = document.createElement("td");
     tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb)}`;
     tdTotalAvg.textContent = _fmtAvg(teamH, teamAb);
-    tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalAvg);
+    tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalBb, tdTotalK, tdTotalAvg);
     tbody.append(tfootTr);
   }
 }
