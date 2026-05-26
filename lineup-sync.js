@@ -26,14 +26,21 @@ async function publishLineup() {
     btn.disabled = true;
     btn.textContent = "Salvando...";
   }
-  await _doSaveLineup();
-  _hasUnsavedChanges = false;
-  if (btn) {
-    btn.disabled = false;
-    btn.innerHTML = '<span class="label-full">Salvar Line Up</span><span class="label-short">Salvar</span>';
-    btn.classList.remove("has-unsaved");
-    btn.classList.add("is-saved");
-    setTimeout(() => btn.classList.remove("is-saved"), 2000);
+  try {
+    await _doSaveLineup();
+    _hasUnsavedChanges = false;
+    if (btn) {
+      btn.classList.remove("has-unsaved");
+      btn.classList.add("is-saved");
+      setTimeout(() => btn.classList.remove("is-saved"), 2000);
+    }
+  } catch (_err) {
+    if (typeof showToast === "function") showToast("Erro ao salvar — verifique a conexão", "error");
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<span class="label-full">Salvar Line Up</span><span class="label-short">Salvar</span>';
+    }
   }
 }
 
@@ -42,20 +49,17 @@ async function _doSaveLineup() {
   const u   = getUser();
   const raw = localStorage.getItem("ttb_lineup_" + u);
   if (!raw) return;
-  try {
-    await fetch(`${AUTH_SUPABASE_URL}/rest/v1/lineups?on_conflict=username`, {
-      method:  "POST",
-      headers: {
-        apikey:          AUTH_SUPABASE_KEY,
-        Authorization:   `Bearer ${AUTH_SUPABASE_KEY}`,
-        "Content-Type":  "application/json",
-        Prefer:          "resolution=merge-duplicates,return=minimal",
-      },
-      body: JSON.stringify({ username: u, state: JSON.parse(raw), updated_at: new Date().toISOString() }),
-    });
-  } catch (err) {
-    console.error("Erro ao salvar lineup:", err);
-  }
+  const res = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/lineups?on_conflict=username`, {
+    method:  "POST",
+    headers: {
+      apikey:          AUTH_SUPABASE_KEY,
+      Authorization:   `Bearer ${AUTH_SUPABASE_KEY}`,
+      "Content-Type":  "application/json",
+      Prefer:          "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({ username: u, state: JSON.parse(raw), updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
 }
 
 /* ── Carrega lineup de outro usuário ── */

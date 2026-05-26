@@ -81,13 +81,14 @@ function loadLineupState() {
     const raw = localStorage.getItem("ttb_lineup_" + getUser());
     if (!raw) return;
     const s = JSON.parse(raw);
-    if (s.assignments)   assignments   = s.assignments;
-    if (s.battingOrders) battingOrders = s.battingOrders;
-    if (s.lineupPending) lineupPending = new Set(s.lineupPending);
-    if (s.bancoPlayers)  bancoPlayers  = new Set(s.bancoPlayers);
-    dhEnabled           = s.dhEnabled           ?? false;
-    dhAssignment        = s.dhAssignment        ?? "";
-    designatedPitcherId = s.designatedPitcherId ?? "";
+    if (!s || typeof s !== "object") return;
+    if (s.assignments   && typeof s.assignments === "object")   assignments   = s.assignments;
+    if (s.battingOrders && typeof s.battingOrders === "object") battingOrders = s.battingOrders;
+    if (Array.isArray(s.lineupPending)) lineupPending = new Set(s.lineupPending);
+    if (Array.isArray(s.bancoPlayers))  bancoPlayers  = new Set(s.bancoPlayers);
+    dhEnabled           = Boolean(s.dhEnabled);
+    dhAssignment        = typeof s.dhAssignment        === "string" ? s.dhAssignment        : "";
+    designatedPitcherId = typeof s.designatedPitcherId === "string" ? s.designatedPitcherId : "";
   } catch (_) {}
 }
 
@@ -167,6 +168,25 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
+function showToast(message, type = "info") {
+  let container = document.getElementById("toastContainer");
+  if (!container) {
+    container = document.createElement("div");
+    container.id = "toastContainer";
+    container.className = "toast-container";
+    document.body.append(container);
+  }
+  const toast = document.createElement("div");
+  toast.className = `toast toast-${type}`;
+  toast.textContent = message;
+  container.append(toast);
+  requestAnimationFrame(() => toast.classList.add("toast-show"));
+  setTimeout(() => {
+    toast.classList.remove("toast-show");
+    toast.addEventListener("transitionend", () => toast.remove(), { once: true });
+  }, 3000);
+}
+
 function getPlayer(id) {
   return roster.find((player) => player.id === id);
 }
@@ -187,7 +207,10 @@ function assignPlayerToPosition(playerId, positionId) {
   if (!playerId) return;
 
   /* Pitcher position in DH mode never counts as a batter — skip capacity check */
-  if (!isLineupPlayer(playerId) && !(dhEnabled && positionId === "P") && getActiveBatterIds().length >= 9) return;
+  if (!isLineupPlayer(playerId) && !(dhEnabled && positionId === "P") && getActiveBatterIds().length >= 9) {
+    showToast("Lineup completo — máximo 9 rebatedores", "warn");
+    return;
+  }
 
   bancoPlayers.delete(playerId);
   selectedPlayerId = playerId;
@@ -339,7 +362,10 @@ function addLineupDropTarget(element) {
 
 function addToLineup(playerId) {
   if (!playerId || isLineupPlayer(playerId)) return;
-  if (getActiveBatterIds().length >= 9) return;
+  if (getActiveBatterIds().length >= 9) {
+    showToast("Lineup completo — máximo 9 rebatedores", "warn");
+    return;
+  }
   bancoPlayers.delete(playerId);
   lineupPending.add(playerId);
   if (!battingOrders[playerId]) {
@@ -477,11 +503,17 @@ function removeCustomPlayer(id) {
     if (assignments[key] === id) assignments[key] = "";
   });
   if (dhAssignment === id) dhAssignment = "";
+  if (designatedPitcherId === id) designatedPitcherId = "";
   lineupPending.delete(id);
   bancoPlayers.delete(id);
   delete battingOrders[id];
   compactBattingOrders();
   saveCustomPlayers();
+  /* Clean orphaned stats for deleted player */
+  try {
+    const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
+    if (stats[id]) { delete stats[id]; localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify(stats)); }
+  } catch (_) {}
   render();
 }
 
@@ -765,6 +797,7 @@ function renderRoster() {
         btn.title = POSITION_TOOLTIPS[tag] || tag;
         btn.addEventListener("click", () => {
           positionFilter = positionFilter === tag ? "" : tag;
+          try { sessionStorage.setItem("ttb_pos_filter", positionFilter); } catch (_) {}
           renderRoster();
         });
         filterBar.append(btn);
@@ -1069,17 +1102,13 @@ function renderOrderSelect(player) {
 
 function setBattingOrder(playerId, nextOrder) {
   const activeBatterIds = getActiveBatterIds();
-  if (!activeBatterIds.includes(playerId)) {
-    return;
-  }
-  const previousOrder = battingOrders[playerId];
-  const otherPlayerId = activeBatterIds.find((id) => id !== playerId && battingOrders[id] === nextOrder);
-
-  if (otherPlayerId && previousOrder) {
-    battingOrders[otherPlayerId] = previousOrder;
-  }
-
-  battingOrders[playerId] = nextOrder;
+  if (!activeBatterIds.includes(playerId)) return;
+  /* Reorder-based approach: always produces unique 1-9 sequence with no collisions */
+  const sorted = [...activeBatterIds].sort((a, b) => (battingOrders[a] || 99) - (battingOrders[b] || 99));
+  const rest   = sorted.filter((id) => id !== playerId);
+  const insertAt = Math.min(Math.max(nextOrder - 1, 0), rest.length);
+  rest.splice(insertAt, 0, playerId);
+  rest.forEach((id, idx) => { battingOrders[id] = idx + 1; });
 }
 
 function getNextOpenBattingOrder() {
@@ -1596,6 +1625,9 @@ if (PAGE === "lineup") {
   document.querySelector("#newPlayerName")?.addEventListener("keydown", (e) => {
     if (e.key === "Enter") document.querySelector("#addPlayerSave")?.click();
   });
+
+  /* Restore position filter from last session */
+  try { positionFilter = sessionStorage.getItem("ttb_pos_filter") || ""; } catch (_) {}
 
   loadPlayerTags();
   loadCustomPlayers();

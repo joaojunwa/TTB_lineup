@@ -4367,3 +4367,132 @@ details[open] .historico-summary::before {
   cursor: not-allowed;
   pointer-events: none;
 }
+
+/* ── Stats rank column ── */
+.stats-th-rank,
+.stats-td-rank {
+  width: 36px;
+  text-align: center;
+  padding: 10px 4px 10px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stats-rank-gold   { color: #f6c347; }
+.stats-rank-silver { color: #aab4be; }
+.stats-rank-bronze { color: #cd7f32; }
+
+/* ── Stats AVG colour variants ── */
+.stats-avg-elite { color: #4de076; }          /* ≥ .400 — green  */
+.stats-avg-good  { color: var(--accent); }    /* ≥ .300 — gold   */
+.stats-avg-ok    { color: #f0ead8; }          /* ≥ .200 — normal */
+.stats-avg-low   { color: #d97070; }          /* < .200 — red    */
+.stats-avg-none  { color: var(--text-muted); } /* no data         */
+
+/* ── Stats player cell layout ── */
+.stats-player-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* ── Stats clear-row button ── */
+.stats-clear-btn {
+  opacity: 0;
+  margin-left: auto;
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s, color 0.15s;
+}
+
+.stats-row:hover .stats-clear-btn { opacity: 1; }
+.stats-clear-btn:hover { background: rgba(217, 112, 112, 0.25); color: #d97070; }
+
+/* ── Stats invalid input (H > AB) ── */
+.stats-input-invalid {
+  border-color: #d97070 !important;
+  background: rgba(217, 112, 112, 0.1) !important;
+}
+
+/* ── Stats totals row ── */
+.stats-totals-row {
+  border-top: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.stats-totals-row .stats-td-avg,
+.stats-totals-row .stats-td-num {
+  font-weight: 700;
+}
+
+.stats-totals-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* ═══════════════════════════════
+   TOAST NOTIFICATIONS
+═══════════════════════════════ */
+
+.toast-container {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+.toast {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #0d1520;
+  background: var(--accent);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.2s, transform 0.2s;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.toast.toast-show {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.toast.toast-warn {
+  background: #f0a030;
+  color: #0d1520;
+}
+
+.toast.toast-error {
+  background: #d43a22;
+  color: #fff;
+}
+
+.toast.toast-success {
+  background: #4de076;
+  color: #0d1520;
+}
