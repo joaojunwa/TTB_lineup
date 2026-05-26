@@ -108,6 +108,32 @@
             />
           </div>
 
+          <div class="roster-controls">
+            <button id="moveAllToBanco" type="button" class="roster-ctrl-btn" title="Mover todos os jogadores do Elenco para o Banco">⬇ Todos ao banco</button>
+            <button id="addPlayerToggle" type="button" class="roster-ctrl-btn roster-ctrl-add">+ Jogador</button>
+          </div>
+
+          <div id="addPlayerPanel" class="add-player-panel" hidden>
+            <div class="add-player-row">
+              <input id="newPlayerName" type="text" placeholder="Nome" class="add-player-name-input" autocomplete="off" />
+              <input id="newPlayerNumber" type="text" inputmode="numeric" placeholder="#" class="add-player-num-input" maxlength="3" autocomplete="off" />
+            </div>
+            <div class="add-player-tags-row">
+              <span class="add-player-tags-label">Posições:</span>
+              <div class="add-player-tags">
+                <button type="button" class="pos-tag-btn" data-tag="P">P</button>
+                <button type="button" class="pos-tag-btn" data-tag="C">C</button>
+                <button type="button" class="pos-tag-btn" data-tag="IF">IF</button>
+                <button type="button" class="pos-tag-btn" data-tag="OF">OF</button>
+                <button type="button" class="pos-tag-btn" data-tag="UT">UT</button>
+              </div>
+            </div>
+            <div class="add-player-submit-row">
+              <button type="button" id="addPlayerSave" class="add-player-save-btn">Adicionar</button>
+              <button type="button" id="addPlayerCancel" class="add-player-cancel-btn">Cancelar</button>
+            </div>
+          </div>
+
           <div id="playerRoster" class="player-roster"></div>
         </aside>
       </section>

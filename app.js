@@ -27,6 +27,9 @@ let draggedPlayerId = "";
 let lineupPending = new Set();
 let bancoPlayers = new Set();
 let rosterSearchTerm = "";
+let positionFilter = "";
+const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
+let customPlayers = [];
 
 function saveLineupState() {
   try {
@@ -158,16 +161,23 @@ function assignPlayerToPosition(playerId, positionId) {
   selectedPlayerId = playerId;
 
   if (positionId === dhPosition.id) {
+    if (dhAssignment && dhAssignment !== playerId) {
+      lineupPending.add(dhAssignment);
+      if (!battingOrders[dhAssignment]) {
+        battingOrders[dhAssignment] = getNextOpenBattingOrder();
+      }
+    }
     Object.keys(assignments).forEach((key) => {
       if (key !== "P" && assignments[key] === playerId) {
         assignments[key] = "";
       }
     });
-    if (!battingOrders[playerId]) {
-      battingOrders[playerId] = getPitcherBattingOrder();
-    }
     lineupPending.delete(playerId);
     dhAssignment = playerId;
+    if (!battingOrders[playerId]) {
+      battingOrders[playerId] = getNextOpenBattingOrder();
+    }
+    compactBattingOrders();
     render();
     return;
   }
@@ -180,6 +190,9 @@ function assignPlayerToPosition(playerId, positionId) {
       assignments[currentPosition] = displacedPlayerId;
     } else {
       lineupPending.add(displacedPlayerId);
+      if (!battingOrders[displacedPlayerId]) {
+        battingOrders[displacedPlayerId] = getNextOpenBattingOrder();
+      }
     }
   } else if (currentPosition) {
     assignments[currentPosition] = "";
@@ -357,6 +370,58 @@ function moveLineupPlayerToBanco(playerId) {
   delete battingOrders[playerId];
   compactBattingOrders();
   bancoPlayers.add(playerId);
+  render();
+}
+
+function moveAllToBanco() {
+  roster
+    .filter((p) => !isLineupPlayer(p.id) && !bancoPlayers.has(p.id))
+    .forEach((p) => bancoPlayers.add(p.id));
+  render();
+}
+
+function loadCustomPlayers() {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PLAYERS_KEY);
+    const saved = raw ? JSON.parse(raw) : [];
+    if (!Array.isArray(saved)) return;
+    saved.forEach((cp) => {
+      if (!roster.find((p) => p.id === cp.id)) {
+        customPlayers.push(cp);
+        roster.push({ ...cp, group: "Elenco", battingOrder: "" });
+      }
+    });
+  } catch (_) {}
+}
+
+function saveCustomPlayers() {
+  try {
+    localStorage.setItem(CUSTOM_PLAYERS_KEY, JSON.stringify(customPlayers));
+  } catch (_) {}
+}
+
+function addCustomPlayer(name, number, positionTags) {
+  const id = `custom-${Date.now()}-${slug(name)}`;
+  const cp = { id, name, number: String(number || ""), photo: "", positionTags };
+  customPlayers.push(cp);
+  roster.push({ ...cp, group: "Elenco", battingOrder: "" });
+  saveCustomPlayers();
+  render();
+}
+
+function removeCustomPlayer(id) {
+  customPlayers = customPlayers.filter((cp) => cp.id !== id);
+  const idx = roster.findIndex((p) => p.id === id);
+  if (idx !== -1) roster.splice(idx, 1);
+  Object.keys(assignments).forEach((key) => {
+    if (assignments[key] === id) assignments[key] = "";
+  });
+  if (dhAssignment === id) dhAssignment = "";
+  lineupPending.delete(id);
+  bancoPlayers.delete(id);
+  delete battingOrders[id];
+  compactBattingOrders();
+  saveCustomPlayers();
   render();
 }
 
@@ -587,6 +652,9 @@ function renderRoster() {
 
   getRosterSections().forEach(({ groupName, players }) => {
     const filtered = term ? players.filter((p) => matchesSearch(p, term)) : players;
+    const displayPlayers = (groupName === "Elenco" && positionFilter)
+      ? filtered.filter((p) => (p.positionTags || []).includes(positionFilter))
+      : filtered;
 
     /* Oculta seções sem resultado durante busca (exceto Lineup sempre visível) */
     if (term && filtered.length === 0 && groupName !== "Lineup") return;
@@ -599,6 +667,23 @@ function renderRoster() {
     group.className = `roster-group ${groupClass}`;
     group.innerHTML = `<h3>${escapeHtml(groupName)}</h3>`;
 
+    if (groupName === "Elenco") {
+      const filterBar = document.createElement("div");
+      filterBar.className = "pos-filter-bar";
+      ["P", "C", "IF", "OF", "UT"].forEach((tag) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = `pos-filter-btn${positionFilter === tag ? " is-active" : ""}`;
+        btn.textContent = tag;
+        btn.addEventListener("click", () => {
+          positionFilter = positionFilter === tag ? "" : tag;
+          renderRoster();
+        });
+        filterBar.append(btn);
+      });
+      group.append(filterBar);
+    }
+
     if (groupName === "Lineup") {
       addLineupDropTarget(group);
     } else if (groupName === "Banco") {
@@ -608,7 +693,7 @@ function renderRoster() {
     const grid = document.createElement("div");
     grid.className = "roster-grid";
 
-    filtered.forEach((player) => {
+    displayPlayers.forEach((player) => {
       const assignedPosition = getAssignedPosition(player.id);
       const card = document.createElement("article");
       card.className = `roster-player ${player.id === selectedPlayerId ? "is-selected" : ""}`;
@@ -617,11 +702,15 @@ function renderRoster() {
       const battingPrefix = getBattingPrefix(player);
       const isDh = dhEnabled && dhAssignment === player.id;
       const canEditOrder = getActiveBatterIds().includes(player.id);
+      const posTagsHtml = player.positionTags?.length
+        ? `<span class="roster-pos-tags">${player.positionTags.map((t) => `<span class="roster-pos-tag">${escapeHtml(t)}</span>`).join("")}</span>`
+        : "";
 
       card.innerHTML = `
         <img class="roster-photo" alt="Foto de ${escapeHtml(player.name)}" src="${escapeHtml(player.photo)}" />
         <span class="roster-name">${battingPrefix}${escapeHtml(player.name)}${isDh ? " DH" : ""}</span>
         <span class="roster-number">${player.number ? `#${escapeHtml(player.number)}` : "sem numero"}</span>
+        ${posTagsHtml}
         <span class="roster-status">${escapeHtml(getPlayerStatus(player, assignedPosition))}</span>
         ${canEditOrder ? renderOrderSelect(player) : ""}
       `;
@@ -683,6 +772,17 @@ function renderRoster() {
           removeFromBanco(player.id);
         });
         card.append(removeBtn);
+      } else if (groupName === "Elenco" && player.id.startsWith("custom-")) {
+        const deleteBtn = document.createElement("button");
+        deleteBtn.type = "button";
+        deleteBtn.className = "lineup-remove-btn";
+        deleteBtn.setAttribute("aria-label", `Remover ${escapeHtml(player.name)} do elenco`);
+        deleteBtn.textContent = "×";
+        deleteBtn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          removeCustomPlayer(player.id);
+        });
+        card.append(deleteBtn);
       }
 
       grid.append(card);
@@ -690,7 +790,12 @@ function renderRoster() {
 
     group.append(grid);
 
-    if (filtered.length === 0 && !term) {
+    if (groupName === "Elenco" && positionFilter && displayPlayers.length === 0 && filtered.length > 0) {
+      const hint = document.createElement("p");
+      hint.className = "lineup-empty-hint";
+      hint.textContent = `Nenhum jogador com posição ${positionFilter}`;
+      group.append(hint);
+    } else if (filtered.length === 0 && !term) {
       const hint = document.createElement("p");
       hint.className = "lineup-empty-hint";
       hint.textContent =
@@ -802,7 +907,7 @@ function getActiveBatterIds() {
   const onFieldIds = Object.values(assignments).filter(Boolean);
   let batterIds = [...new Set([...onFieldIds, ...lineupPending])];
 
-  if (!dhEnabled || !dhAssignment) {
+  if (!dhEnabled) {
     return batterIds;
   }
 
@@ -810,7 +915,7 @@ function getActiveBatterIds() {
     ...new Set(
       batterIds
         .filter((playerId) => playerId !== assignments.P)
-        .concat(dhAssignment),
+        .concat(dhAssignment ? [dhAssignment] : []),
     ),
   ];
 }
@@ -1338,6 +1443,43 @@ if (PAGE === "lineup") {
 
   selectedPlayer.addEventListener("dragend", endDrag);
 
+  document.querySelector("#moveAllToBanco")?.addEventListener("click", moveAllToBanco);
+
+  document.querySelector("#addPlayerToggle")?.addEventListener("click", () => {
+    const panel = document.querySelector("#addPlayerPanel");
+    if (panel) panel.hidden = !panel.hidden;
+  });
+
+  document.querySelector("#addPlayerCancel")?.addEventListener("click", () => {
+    const panel = document.querySelector("#addPlayerPanel");
+    if (panel) panel.hidden = true;
+    document.querySelector("#newPlayerName").value = "";
+    document.querySelector("#newPlayerNumber").value = "";
+    document.querySelectorAll(".pos-tag-btn").forEach((b) => b.classList.remove("is-active"));
+  });
+
+  document.querySelectorAll(".pos-tag-btn").forEach((btn) => {
+    btn.addEventListener("click", () => btn.classList.toggle("is-active"));
+  });
+
+  document.querySelector("#addPlayerSave")?.addEventListener("click", () => {
+    const nameInput = document.querySelector("#newPlayerName");
+    const name = nameInput?.value.trim();
+    if (!name) { nameInput?.focus(); return; }
+    const number = document.querySelector("#newPlayerNumber")?.value.trim() || "";
+    const tags = [...document.querySelectorAll(".pos-tag-btn.is-active")].map((b) => b.dataset.tag);
+    addCustomPlayer(name, number, tags);
+    nameInput.value = "";
+    document.querySelector("#newPlayerNumber").value = "";
+    document.querySelectorAll(".pos-tag-btn").forEach((b) => b.classList.remove("is-active"));
+    document.querySelector("#addPlayerPanel").hidden = true;
+  });
+
+  document.querySelector("#newPlayerName")?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") document.querySelector("#addPlayerSave")?.click();
+  });
+
+  loadCustomPlayers();
   loadLineupState();
   render();
 }

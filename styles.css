@@ -863,6 +863,211 @@ h1 {
   border-color: rgba(40, 120, 200, 0.7);
 }
 
+/* ── Controles do roster (todos ao banco + add jogador) ── */
+.roster-controls {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+}
+
+.roster-ctrl-btn {
+  flex: 1;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  background: rgba(255,255,255,0.06);
+  color: rgba(220,220,220,0.85);
+  font-size: 0.76rem;
+  cursor: pointer;
+  transition: background 140ms, color 140ms;
+}
+
+.roster-ctrl-btn:hover {
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+}
+
+.roster-ctrl-add {
+  color: var(--accent, #f6c347);
+  border-color: rgba(246,195,71,0.25);
+}
+
+.roster-ctrl-add:hover {
+  background: rgba(246,195,71,0.12);
+}
+
+/* ── Painel de adicionar jogador ── */
+.add-player-panel {
+  margin: 0 12px 8px;
+  padding: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.add-player-row {
+  display: flex;
+  gap: 6px;
+}
+
+.add-player-name-input {
+  flex: 1;
+  padding: 7px 10px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.82rem;
+}
+
+.add-player-num-input {
+  width: 52px;
+  padding: 7px 8px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  color: #fff;
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.add-player-name-input:focus,
+.add-player-num-input:focus {
+  outline: none;
+  border-color: rgba(246,195,71,0.4);
+}
+
+.add-player-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.add-player-tags-label {
+  font-size: 0.74rem;
+  color: rgba(200,200,200,0.6);
+}
+
+.add-player-tags {
+  display: flex;
+  gap: 4px;
+}
+
+.pos-tag-btn {
+  padding: 3px 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(200,200,200,0.7);
+  font-size: 0.72rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms, border-color 120ms;
+}
+
+.pos-tag-btn:hover {
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+}
+
+.pos-tag-btn.is-active {
+  background: rgba(246,195,71,0.2);
+  border-color: rgba(246,195,71,0.6);
+  color: #f6c347;
+}
+
+.add-player-submit-row {
+  display: flex;
+  gap: 6px;
+}
+
+.add-player-save-btn {
+  flex: 1;
+  padding: 7px;
+  border-radius: 5px;
+  border: none;
+  background: var(--accent, #f6c347);
+  color: #0d1520;
+  font-weight: 700;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.add-player-save-btn:hover { background: #ffd96e; }
+
+.add-player-cancel-btn {
+  padding: 7px 14px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: transparent;
+  color: rgba(200,200,200,0.7);
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.add-player-cancel-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
+/* ── Filtro de posição no Elenco ── */
+.pos-filter-bar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  flex-wrap: wrap;
+}
+
+.pos-filter-btn {
+  padding: 2px 9px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  background: transparent;
+  color: rgba(180,180,180,0.65);
+  font-size: 0.71rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 120ms, color 120ms;
+}
+
+.pos-filter-btn:hover {
+  background: rgba(255,255,255,0.07);
+  color: #fff;
+}
+
+.pos-filter-btn.is-active {
+  background: rgba(246,195,71,0.18);
+  border-color: rgba(246,195,71,0.55);
+  color: #f6c347;
+}
+
+/* ── Tags de posição nos cards ── */
+.roster-pos-tags {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+}
+
+.roster-pos-tag {
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: rgba(246,195,71,0.12);
+  border: 1px solid rgba(246,195,71,0.3);
+  color: rgba(246,195,71,0.85);
+  font-size: 0.62rem;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+/* ── Esconder controles em modo espectador / visualizando outro ── */
+.is-spectator .roster-controls,
+.is-spectator .add-player-panel,
+.is-viewing-other .roster-controls,
+.is-viewing-other .add-player-panel {
+  display: none;
+}
+
 .is-spectator .lineup-to-banco-btn,
 .is-viewing-other .lineup-to-banco-btn {
   display: none;
@@ -3600,6 +3805,7 @@ details[open] .historico-summary::before {
 /* Esconde botões de edição, mantém Sair e Jogadores visíveis */
 .is-spectator #clearField,
 .is-spectator #clearPositions,
+.is-spectator #moveAllToBanco,
 .is-spectator #resetLineup,
 .is-spectator #exportLineup,
 .is-spectator #saveLineup,
