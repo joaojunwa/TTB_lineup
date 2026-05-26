@@ -27,32 +27,67 @@ function _fmtAvg(h, ab) {
   return avg.toFixed(3).replace(/^0/, "");
 }
 
+/* Same slug logic as app.js so IDs match stored stats */
+function _slug(value) {
+  return String(value)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+/* Build the full player list with stable IDs matching app.js */
+function _buildStatPlayers() {
+  const players = [];
+  const seen = new Set();
+
+  const lineupData = Array.isArray(window.LINEUP_DATA) ? window.LINEUP_DATA : [];
+  const benchData  = Array.isArray(window.BENCH_DATA)  ? window.BENCH_DATA  : [];
+
+  lineupData.forEach((p, i) => {
+    const id = `lineup-${i}-${_slug(p.name)}-${p.number || "sn"}`;
+    if (!seen.has(id)) {
+      seen.add(id);
+      players.push({ id, name: p.name, number: p.number || "", photo: p.photo || "" });
+    }
+  });
+
+  benchData.forEach((p, i) => {
+    const id = `bench-${i}-${_slug(p.name)}-${p.number || "sn"}`;
+    if (!seen.has(id)) {
+      seen.add(id);
+      players.push({ id, name: p.name, number: p.number || "", photo: p.photo || "" });
+    }
+  });
+
+  /* Custom players from localStorage */
+  try {
+    const cps = JSON.parse(localStorage.getItem("ttb_custom_players_v1")) || [];
+    if (Array.isArray(cps)) {
+      cps.forEach((cp) => {
+        if (cp.id && !seen.has(cp.id)) {
+          seen.add(cp.id);
+          players.push({ id: cp.id, name: cp.name, number: cp.number || "", photo: cp.photo || "" });
+        }
+      });
+    }
+  } catch (_) {}
+
+  return players;
+}
+
 /* ── State ── */
 let _statsSearch = "";
-let _statsSort   = "name";
+let _statsSort   = "avg"; /* default: best AVG on top */
 
 /* ── Render ── */
 function renderStatsPage() {
   const tbody = document.getElementById("statsBody");
   if (!tbody) return;
 
-  const stats   = _loadAllStats();
-  let   players = Array.isArray(window.roster) ? [...window.roster] : [];
-
-  /* Load custom players stored in localStorage */
-  try {
-    const cpRaw = localStorage.getItem("ttb_custom_players_v1");
-    if (cpRaw) {
-      const cps = JSON.parse(cpRaw);
-      if (Array.isArray(cps)) {
-        cps.forEach((cp) => {
-          if (!players.some((p) => p.id === cp.id)) {
-            players.push({ ...cp, group: "Elenco" });
-          }
-        });
-      }
-    }
-  } catch (_) {}
+  const stats = _loadAllStats();
+  let players = _buildStatPlayers();
 
   /* Search filter */
   const term = _statsSearch.trim().toLowerCase();
@@ -65,17 +100,25 @@ function renderStatsPage() {
 
   /* Sort */
   players.sort((a, b) => {
-    if (_statsSort === "name") return a.name.localeCompare(b.name, "pt-BR");
     const sa = stats[a.id] || { h: 0, ab: 0 };
     const sb = stats[b.id] || { h: 0, ab: 0 };
+
     if (_statsSort === "avg") {
-      const aa = _calcAvg(sa.h, sa.ab) ?? -1;
-      const ba = _calcAvg(sb.h, sb.ab) ?? -1;
-      return ba - aa;
+      const aa = _calcAvg(sa.h, sa.ab);
+      const ba = _calcAvg(sb.h, sb.ab);
+      /* Players with no AB go to the bottom */
+      if (aa === null && ba === null) return (sb.h || 0) - (sa.h || 0);
+      if (aa === null) return 1;
+      if (ba === null) return -1;
+      if (ba !== aa) return ba - aa;
+      /* Same AVG: more hits on top */
+      return (sb.h || 0) - (sa.h || 0);
     }
+
     if (_statsSort === "hits") return (sb.h || 0) - (sa.h || 0);
     if (_statsSort === "ab")   return (sb.ab || 0) - (sa.ab || 0);
-    return 0;
+    /* name */
+    return a.name.localeCompare(b.name, "pt-BR");
   });
 
   tbody.innerHTML = "";
@@ -141,7 +184,7 @@ function renderStatsPage() {
     tr.append(tdPlayer, tdAb, tdH, tdAvg);
     tbody.append(tr);
 
-    /* Save on change and update AVG live */
+    /* Save on change, update AVG live, re-sort */
     function onInputChange(e) {
       const field = e.target.dataset.field;
       const val   = Math.max(0, parseInt(e.target.value, 10) || 0);
@@ -150,6 +193,7 @@ function renderStatsPage() {
       if (!all[id]) all[id] = { h: 0, ab: 0 };
       all[id][field] = val;
       _saveAllStats(all);
+      /* Update AVG display in this row without full re-sort */
       tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab);
     }
 
@@ -168,12 +212,16 @@ function renderStatsPage() {
 document.addEventListener("DOMContentLoaded", () => {
   if (document.documentElement.dataset.page !== "stats") return;
 
+  /* Set default sort select value */
+  const sortSelect = document.getElementById("statsSort");
+  if (sortSelect) sortSelect.value = _statsSort;
+
   document.getElementById("statsSearch")?.addEventListener("input", (e) => {
     _statsSearch = e.target.value;
     renderStatsPage();
   });
 
-  document.getElementById("statsSort")?.addEventListener("change", (e) => {
+  sortSelect?.addEventListener("change", (e) => {
     _statsSort = e.target.value;
     renderStatsPage();
   });
