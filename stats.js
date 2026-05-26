@@ -2,6 +2,10 @@
 
 const STATS_KEY        = "ttb_player_stats_v2";
 const STATS_SORT_KEY   = "ttb_stats_sort";
+const STATS_SOURCE_KEY = "ttb_stats_sources";
+const STATS_UPDATED_KEY = "ttb_player_stats_updated_at";
+const STATS_REMOTE_ID   = "ttb_player_stats_global";
+const LIVE_BP_CACHE_KEY = "ttb_live_bp_stats_cache";
 
 /* ─── Storage ─────────────────────────────────────── */
 
@@ -10,9 +14,203 @@ function _loadAllStats() {
   catch (_) { return {}; }
 }
 
-function _saveAllStats(stats) {
-  try { localStorage.setItem(STATS_KEY, JSON.stringify(stats)); }
+function _loadStatsSources() {
+  return { game: false, liveBp: false };
+}
+
+function _saveStatsSources() {
+  try { localStorage.removeItem(STATS_SOURCE_KEY); }
   catch (_) {}
+}
+
+function _saveAllStats(stats, options = {}) {
+  try {
+    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+    if (options.updatedAt) localStorage.setItem(STATS_UPDATED_KEY, options.updatedAt);
+    else if (options.touch !== false) localStorage.setItem(STATS_UPDATED_KEY, new Date().toISOString());
+  }
+  catch (_) {}
+  if (options.remote !== false) _scheduleRemoteStatsSave(stats);
+}
+
+function _canUseRemoteStats() {
+  return typeof AUTH_SUPABASE_URL !== "undefined" && typeof AUTH_SUPABASE_KEY !== "undefined";
+}
+
+function _remoteStatsHeaders(extra = {}) {
+  return {
+    apikey: AUTH_SUPABASE_KEY,
+    Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+    ...extra,
+  };
+}
+
+function _remoteStatsUrl(params = "") {
+  return `${AUTH_SUPABASE_URL}/rest/v1/jogos${params}`;
+}
+
+async function _fetchRemoteStats() {
+  if (!_canUseRemoteStats()) return null;
+  const res = await fetch(
+    _remoteStatsUrl(`?select=state,updated_at&id=eq.${encodeURIComponent(STATS_REMOTE_ID)}`),
+    { headers: _remoteStatsHeaders() },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const rows = await res.json();
+  const row = rows[0];
+  if (!row?.state) return null;
+  return {
+    stats: row.state.stats || {},
+    updatedAt: row.updated_at || row.state.updated_at || "",
+  };
+}
+
+async function _saveRemoteStats(stats, updatedAt = new Date().toISOString()) {
+  if (!_canUseRemoteStats()) return;
+  const res = await fetch(_remoteStatsUrl("?on_conflict=id"), {
+    method: "POST",
+    headers: _remoteStatsHeaders({
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    }),
+    body: JSON.stringify({
+      id: STATS_REMOTE_ID,
+      state: { stats, updated_at: updatedAt },
+      updated_at: updatedAt,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+let _remoteSaveTimer = null;
+
+function _scheduleRemoteStatsSave(stats) {
+  if (!_canUseRemoteStats()) return;
+  clearTimeout(_remoteSaveTimer);
+  const snapshot = JSON.parse(JSON.stringify(stats || {}));
+  const updatedAt = new Date().toISOString();
+  try { localStorage.setItem(STATS_UPDATED_KEY, updatedAt); } catch (_) {}
+  _remoteSaveTimer = setTimeout(() => {
+    _saveRemoteStats(snapshot, updatedAt).catch((err) => console.warn("Erro ao salvar stats:", err));
+  }, 500);
+}
+
+async function _syncRemoteStats() {
+  if (!_canUseRemoteStats()) return;
+  try {
+    const remote = await _fetchRemoteStats();
+    const localStats = _loadAllStats();
+    const localUpdated = localStorage.getItem(STATS_UPDATED_KEY) || "";
+    const remoteHasStats = Object.keys(remote?.stats || {}).length > 0;
+    const localHasStats = Object.keys(localStats).length > 0;
+
+    if (remoteHasStats && (!localUpdated || !remote.updatedAt || remote.updatedAt >= localUpdated)) {
+      _saveAllStats(remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
+      renderStatsPage();
+      return;
+    }
+
+    if (localHasStats) {
+      await _saveRemoteStats(localStats, localUpdated || new Date().toISOString());
+    }
+  } catch (err) {
+    console.warn("Stats em modo local:", err);
+  }
+}
+
+function _emptyStat() {
+  return { h: 0, ab: 0, bb: 0, k: 0 };
+}
+
+function _addStats(target, id, source = {}) {
+  if (!target[id]) target[id] = _emptyStat();
+  target[id].h  += source.h  || source.hits || 0;
+  target[id].ab += source.ab || 0;
+  target[id].bb += source.bb || 0;
+  target[id].k  += source.k  || 0;
+}
+
+function _hasStats(stat = {}) {
+  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.k || 0) > 0;
+}
+
+function _combineStats(...sources) {
+  const combined = {};
+  sources.forEach((source) => {
+    Object.entries(source || {}).forEach(([id, stat]) => _addStats(combined, id, stat));
+  });
+  return combined;
+}
+
+function _nameKey(value) {
+  const normalizer = (typeof slug === "function") ? slug : (v) =>
+    String(v).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
+  return normalizer(value);
+}
+
+let _liveBpByName = {};
+let _liveBpLoaded = false;
+
+function _loadCachedLiveBpStats() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(LIVE_BP_CACHE_KEY));
+    if (cached && typeof cached === "object") {
+      _liveBpByName = cached;
+      _liveBpLoaded = true;
+    }
+  } catch (_) {}
+}
+
+async function _fetchLiveBpStats() {
+  if (!_canUseRemoteStats()) return;
+  try {
+    const res = await fetch(
+      `${AUTH_SUPABASE_URL}/rest/v1/treinos?select=nome_jogador,ab,hits,bb,k&limit=5000`,
+      { headers: _remoteStatsHeaders() },
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const rows = await res.json();
+    const byName = {};
+    rows.forEach((row) => {
+      const key = _nameKey(row.nome_jogador || "");
+      if (!key) return;
+      if (!byName[key]) byName[key] = _emptyStat();
+      byName[key].name = row.nome_jogador || byName[key].name || key;
+      byName[key].ab += Number(row.ab) || 0;
+      byName[key].h  += Number(row.hits) || 0;
+      byName[key].bb += Number(row.bb) || 0;
+      byName[key].k  += Number(row.k) || 0;
+    });
+    _liveBpByName = byName;
+    _liveBpLoaded = true;
+    localStorage.setItem(LIVE_BP_CACHE_KEY, JSON.stringify(byName));
+    renderStatsPage();
+  } catch (err) {
+    console.warn("Live BP em modo local:", err);
+  }
+}
+
+function _mapLiveBpStatsToPlayers(players) {
+  const mapped = {};
+  players.forEach((player) => {
+    const stat = _liveBpByName[_nameKey(player.name)];
+    if (stat) mapped[player.id] = { ...stat };
+  });
+  return mapped;
+}
+
+function _withLiveBpOnlyPlayers(players) {
+  if (!_statsSources.liveBp && _statsSources.game) return players;
+  const seenNames = new Set(players.map((player) => _nameKey(player.name)));
+  const extras = Object.entries(_liveBpByName)
+    .filter(([key, stat]) => !seenNames.has(key) && _hasStats(stat))
+    .map(([key, stat]) => ({
+      id: `livebp-${key}`,
+      name: stat.name || key.replace(/-/g, " "),
+      number: "",
+      photo: "",
+    }));
+  return [...players, ...extras];
 }
 
 /* ─── Math ─────────────────────────────────────────── */
@@ -75,6 +273,7 @@ function _buildStatPlayers() {
 
 let _statsSearch = "";
 let _statsSort   = localStorage.getItem(STATS_SORT_KEY) || "avg";
+let _statsSources = _loadStatsSources();
 
 function _sortPlayers(players, stats) {
   return [...players].sort((a, b) => {
@@ -113,8 +312,13 @@ function renderStatsPage() {
 
   clearTimeout(_resortTimer);
 
-  const stats = _loadAllStats();
-  let players = _buildStatPlayers();
+  let players = _withLiveBpOnlyPlayers(_buildStatPlayers());
+  const useAllSources = !_statsSources.game && !_statsSources.liveBp;
+  const useGameStats = _statsSources.game || useAllSources;
+  const useLiveBpStats = _statsSources.liveBp || useAllSources;
+  const gameStats = useGameStats ? _loadAllStats() : {};
+  const liveBpStats = useLiveBpStats ? _mapLiveBpStatsToPlayers(players) : {};
+  const stats = _combineStats(gameStats, liveBpStats);
 
   const term = _statsSearch.trim().toLowerCase();
   if (term) {
@@ -122,6 +326,8 @@ function renderStatsPage() {
       p.name.toLowerCase().includes(term) || String(p.number).includes(term),
     );
   }
+
+  players = players.filter((p) => _hasStats(stats[p.id]));
 
   players = _sortPlayers(players, stats);
 
@@ -137,13 +343,16 @@ function renderStatsPage() {
 
   tbody.innerHTML = "";
 
-  const canEdit = !(typeof isSpectator === "function" && isSpectator());
+  const canEdit =
+    _statsSources.game &&
+    !_statsSources.liveBp &&
+    !(typeof isSpectator === "function" && isSpectator());
 
   players.forEach((player, idx) => {
-    const s  = stats[player.id] || { h: 0, ab: 0 };
+    const s  = stats[player.id] || _emptyStat();
     const id = player.id;
     const rank = _statsSort === "avg" || _statsSort === "hits" || _statsSort === "ab" ? idx + 1 : null;
-    const hasData = (s.ab || 0) > 0 || (s.h || 0) > 0;
+    const hasData = _hasStats(s);
 
     const tr = document.createElement("tr");
     tr.className = "stats-row";
@@ -324,6 +533,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const sortSelect = document.getElementById("statsSort");
   if (sortSelect) sortSelect.value = _statsSort;
+  const gameSource = document.getElementById("statsSourceGame");
+  const liveBpSource = document.getElementById("statsSourceLiveBp");
+  if (gameSource) gameSource.checked = _statsSources.game;
+  if (liveBpSource) liveBpSource.checked = _statsSources.liveBp;
 
   document.getElementById("statsSearch")?.addEventListener("input", (e) => {
     _statsSearch = e.target.value;
@@ -336,5 +549,21 @@ document.addEventListener("DOMContentLoaded", () => {
     renderStatsPage();
   });
 
+  function onSourceChange() {
+    _statsSources = {
+      game: Boolean(gameSource?.checked),
+      liveBp: Boolean(liveBpSource?.checked),
+    };
+    _saveStatsSources();
+    if (_statsSources.liveBp && !_liveBpLoaded) _fetchLiveBpStats();
+    renderStatsPage();
+  }
+
+  gameSource?.addEventListener("change", onSourceChange);
+  liveBpSource?.addEventListener("change", onSourceChange);
+
+  _loadCachedLiveBpStats();
   renderStatsPage();
+  _syncRemoteStats();
+  _fetchLiveBpStats();
 });

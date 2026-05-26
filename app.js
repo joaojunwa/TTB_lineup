@@ -34,6 +34,9 @@ let customPlayers = [];
 const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
 let playerTags = {};
 const PLAYER_STATS_KEY = "ttb_player_stats_v2";
+const PLAYER_STATS_UPDATED_KEY = "ttb_player_stats_updated_at";
+const PLAYER_STATS_REMOTE_ID = "ttb_player_stats_global";
+let playerStatsSaveTimer = null;
 
 const POSITION_TOOLTIPS = {
   P:  "Pitcher",
@@ -58,6 +61,79 @@ function formatPlayerAvg(playerId) {
   const avg = getPlayerAvg(playerId);
   if (avg === null) return null;
   return avg.toFixed(3).replace(/^0/, "");
+}
+
+function canSaveRemotePlayerStats() {
+  return typeof AUTH_SUPABASE_URL !== "undefined" && typeof AUTH_SUPABASE_KEY !== "undefined";
+}
+
+function saveRemotePlayerStats(stats, updatedAt) {
+  if (!canSaveRemotePlayerStats()) return;
+  clearTimeout(playerStatsSaveTimer);
+  const snapshot = JSON.parse(JSON.stringify(stats || {}));
+  playerStatsSaveTimer = setTimeout(async () => {
+    try {
+      const res = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?on_conflict=id`, {
+        method: "POST",
+        headers: {
+          apikey: AUTH_SUPABASE_KEY,
+          Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+          "Content-Type": "application/json",
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: JSON.stringify({
+          id: PLAYER_STATS_REMOTE_ID,
+          state: { stats: snapshot, updated_at: updatedAt },
+          updated_at: updatedAt,
+        }),
+      });
+      if (!res.ok) throw new Error(await res.text());
+    } catch (err) {
+      console.warn("Erro ao salvar stats gerais:", err);
+    }
+  }, 500);
+}
+
+function recordSitePlayerStat(playerId, field, amount = 1) {
+  if (!playerId || !["ab", "h", "bb", "k"].includes(field)) return;
+  try {
+    const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
+    if (!stats[playerId]) stats[playerId] = { h: 0, ab: 0, bb: 0, k: 0 };
+    stats[playerId][field] = (stats[playerId][field] || 0) + amount;
+    const updatedAt = new Date().toISOString();
+    localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify(stats));
+    localStorage.setItem(PLAYER_STATS_UPDATED_KEY, updatedAt);
+    saveRemotePlayerStats(stats, updatedAt);
+  } catch (_) {}
+}
+
+async function syncSitePlayerStatsFromRemote() {
+  if (!canSaveRemotePlayerStats()) return;
+  try {
+    const res = await fetch(
+      `${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state,updated_at&id=eq.${encodeURIComponent(PLAYER_STATS_REMOTE_ID)}`,
+      {
+        headers: {
+          apikey: AUTH_SUPABASE_KEY,
+          Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+        },
+      },
+    );
+    if (!res.ok) throw new Error(await res.text());
+    const rows = await res.json();
+    const row = rows[0];
+    const remoteStats = row?.state?.stats;
+    if (!remoteStats || Object.keys(remoteStats).length === 0) return;
+
+    const localUpdated = localStorage.getItem(PLAYER_STATS_UPDATED_KEY) || "";
+    const remoteUpdated = row.updated_at || row.state.updated_at || "";
+    if (!localUpdated || !remoteUpdated || remoteUpdated >= localUpdated) {
+      localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify(remoteStats));
+      if (remoteUpdated) localStorage.setItem(PLAYER_STATS_UPDATED_KEY, remoteUpdated);
+    }
+  } catch (err) {
+    console.warn("Stats gerais em modo local:", err);
+  }
 }
 
 function saveLineupState() {
@@ -1655,8 +1731,12 @@ const gameState = {
 };
 
 const OPPONENT_LINEUP_KEY = "ttb_opponent_lineup";
+const STATUS_TEAM_SIDE_KEY = "ttb_status_ttb_side";
+const MATCH_HISTORY_KEY = "ttb_match_history_v1";
 let activeStatusLineupTab = "home";
 let opponentLineup = buildBlankOpponentLineup();
+let ttbSide = loadTtbSide();
+let activeMatchHistoryId = "";
 
 function buildBlankOpponentLineup() {
   return Array.from({ length: 9 }, (_, index) => ({
@@ -1687,6 +1767,259 @@ function saveOpponentLineup() {
   } catch (_) {}
 }
 
+function loadTtbSide() {
+  try {
+    const saved = localStorage.getItem(STATUS_TEAM_SIDE_KEY);
+    if (saved === "away" || saved === "home") return saved;
+  } catch (_) {}
+  return "home";
+}
+
+function saveTtbSide() {
+  try { localStorage.setItem(STATUS_TEAM_SIDE_KEY, ttbSide); }
+  catch (_) {}
+}
+
+function opponentSide() {
+  return ttbSide === "away" ? "home" : "away";
+}
+
+function isOurTeamSide(team) {
+  return team === ttbSide;
+}
+
+function getOpponentStatKey(index) {
+  return `opponent_${index}`;
+}
+
+function getOpponentStats(index) {
+  return (
+    gameState.playerStats[getOpponentStatKey(index)] ||
+    gameState.playerStats[`away_${index}`] ||
+    gameState.playerStats[`home_${index}`] ||
+    { ab: 0, h: 0, bb: 0, k: 0 }
+  );
+}
+
+function setDefaultTeamNames() {
+  const awayName = document.querySelector("#awayName");
+  const homeName = document.querySelector("#homeName");
+  if (awayName) awayName.value = ttbSide === "away" ? "TTB" : "Visitante";
+  if (homeName) homeName.value = ttbSide === "home" ? "TTB" : "Visitante";
+}
+
+function normalizeTeamNamesForSide() {
+  const awayName = document.querySelector("#awayName");
+  const homeName = document.querySelector("#homeName");
+  if (!awayName || !homeName) return;
+  if (ttbSide === "away") {
+    if (!awayName.value || awayName.value === "Visitante") awayName.value = "TTB";
+    if (!homeName.value || homeName.value === "TTB") homeName.value = "Visitante";
+  } else {
+    if (!homeName.value || homeName.value === "Visitante") homeName.value = "TTB";
+    if (!awayName.value || awayName.value === "TTB") awayName.value = "Visitante";
+  }
+}
+
+function swapTeamSides() {
+  const oldOpponentSide = opponentSide();
+  const oldOpponentName =
+    document.querySelector(`#${oldOpponentSide}Name`)?.value ||
+    "Visitante";
+  ttbSide = ttbSide === "home" ? "away" : "home";
+  gameState.batterIndexes = { away: gameState.batterIndexes?.away || 0, home: gameState.batterIndexes?.home || 0 };
+  const awayName = document.querySelector("#awayName");
+  const homeName = document.querySelector("#homeName");
+  if (awayName) awayName.value = ttbSide === "away" ? "TTB" : oldOpponentName;
+  if (homeName) homeName.value = ttbSide === "home" ? "TTB" : oldOpponentName;
+  saveTtbSide();
+  renderStatus();
+}
+
+function loadMatchHistory() {
+  try {
+    const history = JSON.parse(localStorage.getItem(MATCH_HISTORY_KEY));
+    return Array.isArray(history) ? history : [];
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveMatchHistory(history) {
+  try { localStorage.setItem(MATCH_HISTORY_KEY, JSON.stringify(history.slice(0, 12))); }
+  catch (_) {}
+}
+
+function currentScoreSnapshot() {
+  computeRuns();
+  return {
+    awayName: document.querySelector("#awayName")?.value || (ttbSide === "away" ? "TTB" : "Visitante"),
+    homeName: document.querySelector("#homeName")?.value || (ttbSide === "home" ? "TTB" : "Visitante"),
+    awayRuns: getCellNumber(document.querySelector("#awayRuns")),
+    homeRuns: getCellNumber(document.querySelector("#homeRuns")),
+    awayHits: getCellNumber(document.querySelector("#awayHits")),
+    homeHits: getCellNumber(document.querySelector("#homeHits")),
+    awayErrors: getCellNumber(document.querySelector("#awayErrors")),
+    homeErrors: getCellNumber(document.querySelector("#homeErrors")),
+  };
+}
+
+function archiveCurrentMatch() {
+  const hasScore = ["#awayRuns", "#homeRuns", "#awayHits", "#homeHits", "#awayErrors", "#homeErrors"]
+    .some((sel) => getCellNumber(document.querySelector(sel)) > 0);
+  const hasStats = Object.values(gameState.playerStats || {}).some((s) => (s.ab || 0) > 0 || (s.h || 0) > 0 || (s.bb || 0) > 0 || (s.k || 0) > 0);
+  const hasPlays = (gameState.plays || []).length > 0;
+  if (!hasScore && !hasStats && !hasPlays) return null;
+
+  const entry = {
+    id: `match-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    ttbSide,
+    score: currentScoreSnapshot(),
+    ourLineup: getStatusBatterList().map((player, index) => ({
+      id: player.id,
+      order: index + 1,
+      name: player.name,
+      number: player.number || "",
+      position: getAssignedPosition(player.id) || "",
+    })),
+    opponentLineup: JSON.parse(JSON.stringify(opponentLineup || [])),
+    playerStats: JSON.parse(JSON.stringify(gameState.playerStats || {})),
+    plays: JSON.parse(JSON.stringify(gameState.plays || [])),
+  };
+  const history = loadMatchHistory();
+  history.unshift(entry);
+  saveMatchHistory(history);
+  renderMatchHistory();
+  return entry;
+}
+
+function renderMatchHistoryLegacy() {
+  const container = document.querySelector("#matchHistoryList");
+  if (!container) return;
+  const history = loadMatchHistory();
+  if (history.length === 0) {
+    container.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
+    return;
+  }
+  container.innerHTML = history.slice(0, 6).map((entry) => {
+    const score = entry.score || {};
+    const date = new Date(entry.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const time = new Date(entry.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return `<div class="gd-match-history-item">
+      <span>${escapeHtml(date)} ${escapeHtml(time)}</span>
+      <strong>${escapeHtml(score.awayName || "Visitante")} ${score.awayRuns ?? 0} - ${score.homeRuns ?? 0} ${escapeHtml(score.homeName || "TTB")}</strong>
+      <small>H ${score.awayHits ?? 0}-${score.homeHits ?? 0} · E ${score.awayErrors ?? 0}-${score.homeErrors ?? 0}</small>
+    </div>`;
+  }).join("");
+}
+
+function getMatchResult(entry) {
+  const score = entry.score || {};
+  const ttbRuns = entry.ttbSide === "away" ? score.awayRuns || 0 : score.homeRuns || 0;
+  const oppRuns = entry.ttbSide === "away" ? score.homeRuns || 0 : score.awayRuns || 0;
+  if (ttbRuns === oppRuns) return { label: "TIE", className: "is-tie", ttbRuns, oppRuns };
+  return ttbRuns > oppRuns
+    ? { label: "WIN", className: "is-win", ttbRuns, oppRuns }
+    : { label: "LOSE", className: "is-lose", ttbRuns, oppRuns };
+}
+
+function formatHistoryAvg(stat = {}) {
+  return stat.ab > 0 ? "." + String(Math.round((stat.h / stat.ab) * 1000)).padStart(3, "0") : "—";
+}
+
+function historyStatRow(label, stat = {}, extra = "") {
+  return `<tr>
+    <td class="gd-history-player">${escapeHtml(label)}${extra ? `<span>${escapeHtml(extra)}</span>` : ""}</td>
+    <td>${stat.ab || 0}</td>
+    <td>${stat.h || 0}</td>
+    <td>${stat.bb || 0}</td>
+    <td>${stat.k || 0}</td>
+    <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
+  </tr>`;
+}
+
+function renderHistoryStatsTable(title, rows) {
+  return `<section class="gd-history-team">
+    <h4>${escapeHtml(title)}</h4>
+    <table class="gd-history-table">
+      <thead><tr><th>Jogador</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="6">Sem stats.</td></tr>`}</tbody>
+    </table>
+  </section>`;
+}
+
+function renderMatchHistoryDetail(entry) {
+  const detail = document.querySelector("#matchHistoryDetail");
+  if (!detail) return;
+  if (!entry) {
+    detail.innerHTML = "";
+    return;
+  }
+  const score = entry.score || {};
+  const result = getMatchResult(entry);
+  const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
+  const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
+  const stats = entry.playerStats || {};
+  const ourLineup = entry.ourLineup || [];
+  const opponentRows = entry.opponentLineup || [];
+  const ourRows = ourLineup
+    .map((player) => historyStatRow(`${player.order}. ${player.name}`, stats[player.id] || {}, [player.position, player.number ? `#${player.number}` : ""].filter(Boolean).join(" ")))
+    .join("");
+  const oppRows = opponentRows
+    .map((row, index) => historyStatRow(`${row.order || index + 1}. ${row.name || `Adversario ${index + 1}`}`, stats[getOpponentStatKey(index)] || stats[`away_${index}`] || stats[`home_${index}`] || {}, row.number ? `#${row.number}` : ""))
+    .join("");
+
+  detail.innerHTML = `
+    <div class="gd-history-score">
+      <span>${escapeHtml(ttbName)}</span>
+      <strong>${result.ttbRuns} - ${result.oppRuns}</strong>
+      <span>${escapeHtml(oppName)}</span>
+      <em class="${result.className}">${result.label}</em>
+    </div>
+    <div class="gd-history-stats-grid">
+      ${renderHistoryStatsTable(ttbName, ourRows)}
+      ${renderHistoryStatsTable(oppName, oppRows)}
+    </div>
+  `;
+}
+
+function renderMatchHistory() {
+  const container = document.querySelector("#matchHistoryList");
+  if (!container) return;
+  const history = loadMatchHistory();
+  if (history.length === 0) {
+    container.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
+    renderMatchHistoryDetail(null);
+    return;
+  }
+  if (!activeMatchHistoryId || !history.some((entry) => entry.id === activeMatchHistoryId)) {
+    activeMatchHistoryId = history[0]?.id || "";
+  }
+  container.innerHTML = history.slice(0, 8).map((entry) => {
+    const score = entry.score || {};
+    const result = getMatchResult(entry);
+    const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
+    const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
+    const date = new Date(entry.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    const time = new Date(entry.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return `<button class="gd-match-history-item${activeMatchHistoryId === entry.id ? " is-active" : ""}" type="button" data-match-id="${escapeHtml(entry.id)}">
+      <span>${escapeHtml(date)} ${escapeHtml(time)}</span>
+      <strong>${escapeHtml(ttbName)} ${result.ttbRuns} - ${result.oppRuns} ${escapeHtml(oppName)} <em class="${result.className}">${result.label}</em></strong>
+      <small>Placar oficial: ${escapeHtml(score.awayName || "Visitante")} ${score.awayRuns ?? 0} - ${score.homeRuns ?? 0} ${escapeHtml(score.homeName || "TTB")}</small>
+    </button>`;
+  }).join("");
+  container.querySelectorAll("[data-match-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeMatchHistoryId = button.dataset.matchId || "";
+      activeStatusLineupTab = "history";
+      renderStatusLineupTabs();
+      renderMatchHistory();
+    });
+  });
+  renderMatchHistoryDetail(history.find((entry) => entry.id === activeMatchHistoryId) || history[0]);
+}
+
 function getStatusBatterList() {
   return getActiveBatterIds()
     .map((id) => getPlayer(id))
@@ -1701,16 +2034,16 @@ function getCurrentTeamBatterIndex(team = currentBattingTeam()) {
 function advanceCurrentTeamBatter() {
   const team = currentBattingTeam();
   gameState.batterIndexes[team] = getCurrentTeamBatterIndex(team) + 1;
-  if (team === "home") {
-    gameState.currentBatterIndex = gameState.batterIndexes.home;
+  if (isOurTeamSide(team)) {
+    gameState.currentBatterIndex = gameState.batterIndexes[team];
   }
 }
 
 function getCurrentBatterLabel() {
   const team = currentBattingTeam();
 
-  if (team === "away") {
-    const row = opponentLineup[getCurrentTeamBatterIndex("away") % opponentLineup.length];
+  if (!isOurTeamSide(team)) {
+    const row = opponentLineup[getCurrentTeamBatterIndex(team) % opponentLineup.length];
     if (!row) return "";
     if (row.name && row.number) return `#${row.number} ${row.name}`;
     if (row.name) return row.name;
@@ -1719,7 +2052,7 @@ function getCurrentBatterLabel() {
   }
 
   const batters = getStatusBatterList();
-  const current = batters[getCurrentTeamBatterIndex("home") % Math.max(batters.length, 1)];
+  const current = batters[getCurrentTeamBatterIndex(team) % Math.max(batters.length, 1)];
   return current?.name ?? "";
 }
 
@@ -1785,7 +2118,7 @@ function renderStatusBattingOrder() {
     return;
   }
 
-  const current = getCurrentTeamBatterIndex("home") % batters.length;
+  const current = getCurrentTeamBatterIndex(ttbSide) % batters.length;
   const totals = { ab: 0, h: 0, bb: 0, k: 0 };
 
   const rows = batters.map((player, i) => {
@@ -1811,10 +2144,19 @@ function renderStatusBattingOrder() {
 
   container.innerHTML = `
     <table class="gd-stats-table">
+      <colgroup>
+        <col class="gd-stat-order-col" />
+        <col class="gd-stat-name-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+      </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Nosso Time</th>
-          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+          <th class="gd-stat-metric-head">AB</th><th class="gd-stat-metric-head">H</th><th class="gd-stat-metric-head">BB</th><th class="gd-stat-metric-head">K</th><th class="gd-stat-metric-head">AVG</th>
         </tr>
       </thead>
       <tbody>
@@ -1833,13 +2175,13 @@ function renderStatusBattingOrder() {
 function renderOpponentLineup() {
   const container = document.querySelector("#opponentLineup");
   if (!container) return;
-  const current = getCurrentTeamBatterIndex("away") % opponentLineup.length;
+  const side = opponentSide();
+  const current = getCurrentTeamBatterIndex(side) % opponentLineup.length;
   const totals = { ab: 0, h: 0, bb: 0, k: 0 };
 
   const rows = opponentLineup.map((row, index) => {
     const isCurrent = index === current;
-    const key = `away_${index}`;
-    const s = gameState.playerStats[key] || { ab: 0, h: 0, bb: 0, k: 0 };
+    const s = getOpponentStats(index);
     totals.ab += s.ab; totals.h += s.h; totals.bb += s.bb; totals.k += s.k;
     const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
@@ -1864,6 +2206,15 @@ function renderOpponentLineup() {
 
   container.innerHTML = `
     <table class="gd-stats-table">
+      <colgroup>
+        <col class="gd-stat-order-col" />
+        <col class="gd-stat-name-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+      </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Adversário</th>
@@ -1896,22 +2247,33 @@ function renderOpponentLineup() {
 function renderStatusLineupTabs() {
   const homeButton = document.querySelector("#homeLineupTab");
   const awayButton = document.querySelector("#awayLineupTab");
+  const historyButton = document.querySelector("#historyLineupTab");
   const homePanel = document.querySelector("#homeLineupPanel");
   const awayPanel = document.querySelector("#awayLineupPanel");
+  const historyPanel = document.querySelector("#historyLineupPanel");
 
   homeButton?.classList.toggle("is-active", activeStatusLineupTab === "home");
   awayButton?.classList.toggle("is-active", activeStatusLineupTab === "away");
+  historyButton?.classList.toggle("is-active", activeStatusLineupTab === "history");
   if (homePanel) homePanel.hidden = activeStatusLineupTab !== "home";
   if (awayPanel) awayPanel.hidden = activeStatusLineupTab !== "away";
+  if (historyPanel) historyPanel.hidden = activeStatusLineupTab !== "history";
 }
 
 function renderScoreboardLabels() {
-  const awayName = document.querySelector("#awayName")?.value || "Visitante";
-  const homeName = document.querySelector("#homeName")?.value || "TTB";
+  normalizeTeamNamesForSide();
+  const awayName = document.querySelector("#awayName")?.value || (ttbSide === "away" ? "TTB" : "Visitante");
+  const homeName = document.querySelector("#homeName")?.value || (ttbSide === "home" ? "TTB" : "Visitante");
   const awayLabel = document.querySelector("#awayLabel");
   const homeLabel = document.querySelector("#homeLabel");
   if (awayLabel) awayLabel.textContent = awayName;
   if (homeLabel) homeLabel.textContent = homeName;
+  document.querySelector("#awayScoreRow")?.classList.toggle("gd-our-team-row", ttbSide === "away");
+  document.querySelector("#homeScoreRow")?.classList.toggle("gd-our-team-row", ttbSide === "home");
+  document.querySelector(".gd-away")?.classList.toggle("gd-our-team-block", ttbSide === "away");
+  document.querySelector(".gd-home")?.classList.toggle("gd-our-team-block", ttbSide === "home");
+  const swapBtn = document.querySelector("#btnSwapTeams");
+  if (swapBtn) swapBtn.textContent = ttbSide === "home" ? "TTB em cima" : "TTB embaixo";
 }
 
 function computeRuns() {
@@ -1976,21 +2338,25 @@ function recordBatterStat(field, amount = 1) {
   const team = currentBattingTeam();
   let key;
 
-  if (team === "home") {
+  if (isOurTeamSide(team)) {
     const batters = getStatusBatterList();
     if (!batters.length) return;
-    const batter = batters[getCurrentTeamBatterIndex("home") % batters.length];
+    const batter = batters[getCurrentTeamBatterIndex(team) % batters.length];
     if (!batter) return;
     key = batter.id;
   } else {
-    const idx = getCurrentTeamBatterIndex("away") % Math.max(opponentLineup.length, 1);
-    key = `away_${idx}`;
+    const idx = getCurrentTeamBatterIndex(team) % Math.max(opponentLineup.length, 1);
+    key = getOpponentStatKey(idx);
   }
 
   if (!gameState.playerStats[key]) {
     gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0 };
   }
   gameState.playerStats[key][field] = (gameState.playerStats[key][field] || 0) + amount;
+
+  if (isOurTeamSide(team)) {
+    recordSitePlayerStat(key, field, amount);
+  }
 }
 
 function completeWalk() {
@@ -2041,6 +2407,7 @@ function renderStatus() {
   renderOpponentLineup();
   renderStatusLineupTabs();
   renderScoreboardLabels();
+  renderMatchHistory();
   highlightCurrentInning();
   const gdBatter = document.querySelector("#gdCurrentBatter");
   if (gdBatter) gdBatter.textContent = getCurrentBatterLabel() || "— sem rebatedor —";
@@ -2061,8 +2428,9 @@ function nextBatter() {
 
 function addOut() {
   recordBatterStat("ab");
+  recordBatterStat("k");
   gameState.outs += 1;
-  logPlay(`Out #${gameState.outs}`);
+  logPlay(`Out (K) #${gameState.outs}`);
   if (gameState.outs >= 3) {
     gameState.outs = 0;
     gameState.isTop = !gameState.isTop;
@@ -2143,6 +2511,7 @@ if (pitchWrapper && pitchZoneBox) {
 if (PAGE === "status") {
   loadLineupState();
   loadOpponentLineup();
+  syncSitePlayerStatsFromRemote();
 
   /* ── Status button handlers ── */
   document.querySelector("#btnBall")?.addEventListener("click", () => {
@@ -2165,6 +2534,7 @@ if (PAGE === "status") {
   document.querySelector("#btnHit")?.addEventListener("click", completeHit);
   document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
   document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
+  document.querySelector("#btnSwapTeams")?.addEventListener("click", swapTeamSides);
 
   document.querySelector("#homeLineupTab")?.addEventListener("click", () => {
     activeStatusLineupTab = "home";
@@ -2174,6 +2544,12 @@ if (PAGE === "status") {
   document.querySelector("#awayLineupTab")?.addEventListener("click", () => {
     activeStatusLineupTab = "away";
     renderStatusLineupTabs();
+  });
+
+  document.querySelector("#historyLineupTab")?.addEventListener("click", () => {
+    activeStatusLineupTab = "history";
+    renderStatusLineupTabs();
+    renderMatchHistory();
   });
 
   document.querySelector("#prevInning")?.addEventListener("click", () => {

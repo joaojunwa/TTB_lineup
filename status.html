@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Status do Jogo — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=10" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -23,6 +23,7 @@
         <div class="gd-nav-right">
           <span id="gdRealtimeStatus" class="gd-realtime-dot gd-rt-connecting" title="Conectando..."></span>
           <span id="gdRealtimeLabel" class="gd-realtime-label">Conectando...</span>
+          <button id="btnSwapTeams" class="gd-btn-novo-jogo" type="button">Inverter</button>
           <button id="btnNovoJogo" class="gd-btn-novo-jogo">Novo Jogo</button>
           <button class="btn-logout gd-btn-novo-jogo" type="button">Sair</button>
         </div>
@@ -189,12 +190,17 @@
               <div class="gd-lineup-tabs-bar">
                 <button id="homeLineupTab" class="gd-lineup-tab is-active" type="button">Nosso time</button>
                 <button id="awayLineupTab" class="gd-lineup-tab" type="button">Adversário</button>
+                <button id="historyLineupTab" class="gd-lineup-tab" type="button">Histórico</button>
               </div>
               <div id="homeLineupPanel" class="gd-lineup-panel">
                 <div id="statusBattingOrder"></div>
               </div>
               <div id="awayLineupPanel" class="gd-lineup-panel" hidden>
                 <div id="opponentLineup" class="opponent-lineup"></div>
+              </div>
+              <div id="historyLineupPanel" class="gd-lineup-panel" hidden>
+                <div id="matchHistoryList" class="gd-match-history-list"></div>
+                <div id="matchHistoryDetail" class="gd-match-history-detail"></div>
               </div>
             </div>
 
@@ -204,8 +210,8 @@
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    <script src="lineup-data.js?v=4"></script>
-    <script src="app.js?v=4"></script>
-    <script src="status-realtime.js?v=4"></script>
+    <script src="lineup-data.js?v=5"></script>
+    <script src="app.js?v=10"></script>
+    <script src="status-realtime.js?v=10"></script>
   </body>
 </html>

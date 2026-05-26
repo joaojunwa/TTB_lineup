@@ -26,6 +26,8 @@ function coletarEstado() {
     gameState:      JSON.parse(JSON.stringify(gameState)),
     innings,
     opponentLineup: JSON.parse(JSON.stringify(opponentLineup)),
+    ttbSide: typeof ttbSide === "string" ? ttbSide : "home",
+    matchHistory: typeof loadMatchHistory === "function" ? loadMatchHistory() : [],
     awayName:   $(`#awayName`)?.value   || "Visitante",
     homeName:   $(`#homeName`)?.value   || "TTB",
     awayHits:   $(`#awayHits`)?.textContent?.trim()   || "0",
@@ -77,6 +79,13 @@ function aplicarEstado(estado) {
     if (estado.homeErrors && $(`#homeErrors`)) $(`#homeErrors`).textContent    = estado.homeErrors;
 
     if (Array.isArray(estado.opponentLineup)) opponentLineup = estado.opponentLineup;
+    if (estado.ttbSide === "away" || estado.ttbSide === "home") {
+      ttbSide = estado.ttbSide;
+      if (typeof saveTtbSide === "function") saveTtbSide();
+    }
+    if (Array.isArray(estado.matchHistory) && typeof saveMatchHistory === "function") {
+      saveMatchHistory(estado.matchHistory);
+    }
 
     computeRuns();
     renderStatus();
@@ -138,11 +147,12 @@ function setIndicador(status) {
 
 /* ── Resetar jogo ── */
 function novoJogo() {
-  if (!confirm("Resetar o jogo atual? Placar e log serão apagados.")) return;
+  if (!confirm("Arquivar esta partida e iniciar novo jogo? Os stats gerais serao mantidos.")) return;
+  if (typeof archiveCurrentMatch === "function") archiveCurrentMatch();
   Object.assign(gameState, {
     inning: 1, isTop: true, outs: 0, balls: 0, strikes: 0,
     bases: [false, false, false], currentBatterIndex: 0,
-    batterIndexes: { away: 0, home: 0 }, plays: [], currentPitches: [],
+    batterIndexes: { away: 0, home: 0 }, plays: [], currentPitches: [], playerStats: {},
   });
   document.querySelectorAll("td[data-team][data-inning]").forEach((td) => (td.textContent = ""));
   ["#awayHits", "#homeHits", "#awayErrors", "#homeErrors"].forEach((sel) => {
