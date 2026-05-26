@@ -1060,6 +1060,46 @@ h1 {
   line-height: 1.4;
 }
 
+/* ── Editor de tags inline no card (Elenco) ── */
+.card-tag-editor {
+  display: flex;
+  gap: 3px;
+  flex-wrap: wrap;
+  padding: 4px 0 2px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  margin-top: 3px;
+}
+
+.card-tag-btn {
+  padding: 2px 6px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(160,160,160,0.55);
+  font-size: 0.62rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 100ms, color 100ms, border-color 100ms;
+  line-height: 1.4;
+}
+
+.card-tag-btn:hover {
+  background: rgba(255,255,255,0.07);
+  color: rgba(220,220,220,0.9);
+}
+
+.card-tag-btn.is-active {
+  background: rgba(246,195,71,0.15);
+  border-color: rgba(246,195,71,0.5);
+  color: #f6c347;
+}
+
+.is-spectator .card-tag-editor,
+.is-viewing-other .card-tag-editor {
+  pointer-events: none;
+  opacity: 0.5;
+}
+
 /* ── Esconder controles em modo espectador / visualizando outro ── */
 .is-spectator .roster-controls,
 .is-spectator .add-player-panel,
@@ -4138,4 +4178,192 @@ details[open] .historico-summary::before {
   .gd-big-score { font-size: 2rem; }
   .gd-team-name-input { font-size: 0.85rem; width: 80px; }
   .gd-inning-nav { padding: 0 12px; }
+}
+
+/* ═══════════════════════════════
+   STATS PAGE
+═══════════════════════════════ */
+
+.stats-view {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.stats-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stats-search {
+  flex: 1;
+  min-width: 180px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 7px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.stats-search:focus { border-color: rgba(246, 195, 71, 0.5); }
+.stats-search::placeholder { color: var(--text-muted); }
+
+.stats-sort-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.stats-sort-select {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.82rem;
+  padding: 5px 8px;
+  outline: none;
+  cursor: pointer;
+}
+
+.stats-sort-select:focus { border-color: rgba(246, 195, 71, 0.5); }
+
+.stats-table-wrap {
+  overflow-x: auto;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.stats-table thead tr {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.stats-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--line);
+}
+
+.stats-th-num,
+.stats-td-num {
+  text-align: center;
+  width: 90px;
+}
+
+.stats-th-avg,
+.stats-td-avg {
+  text-align: center;
+  width: 90px;
+}
+
+.stats-row {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.12s;
+}
+
+.stats-row:last-child { border-bottom: none; }
+.stats-row:hover { background: rgba(255, 255, 255, 0.04); }
+
+.stats-td-player {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+}
+
+.stats-td-num,
+.stats-td-avg {
+  padding: 10px 14px;
+  vertical-align: middle;
+}
+
+.stats-photo {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: #2b383b;
+}
+
+.stats-name {
+  font-weight: 600;
+  color: #f0ead8;
+}
+
+.stats-number {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.stats-input {
+  width: 64px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 5px 4px;
+  outline: none;
+  transition: border-color 0.15s;
+  -moz-appearance: textfield;
+}
+
+.stats-input::-webkit-outer-spin-button,
+.stats-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.stats-input:focus { border-color: rgba(246, 195, 71, 0.5); }
+.stats-input:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.stats-td-avg {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+/* AVG badge on player cards in the lineup panel */
+.roster-avg-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(246, 195, 71, 0.12);
+  border: 1px solid rgba(246, 195, 71, 0.3);
+  border-radius: 4px;
+  padding: 1px 5px;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+/* Spectators cannot edit stats inputs */
+.is-spectator .stats-input {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
 }

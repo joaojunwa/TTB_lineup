@@ -30,6 +30,34 @@ let rosterSearchTerm = "";
 let positionFilter = "";
 const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
 let customPlayers = [];
+const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
+let playerTags = {};
+const PLAYER_STATS_KEY = "ttb_player_stats_v2";
+
+const POSITION_TOOLTIPS = {
+  P:  "Pitcher",
+  C:  "Catcher",
+  IF: "Infield (1B, 2B, 3B, SS)",
+  OF: "Outfield (LF, CF, RF)",
+  UT: "Utility — pode jogar em várias posições",
+};
+
+function getPlayerAvg(playerId) {
+  try {
+    const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
+    const s = stats[playerId];
+    if (!s || !s.ab) return null;
+    return s.h / s.ab;
+  } catch (_) {
+    return null;
+  }
+}
+
+function formatPlayerAvg(playerId) {
+  const avg = getPlayerAvg(playerId);
+  if (avg === null) return null;
+  return avg.toFixed(3).replace(/^0/, "");
+}
 
 function saveLineupState() {
   try {
@@ -425,6 +453,33 @@ function removeCustomPlayer(id) {
   render();
 }
 
+function loadPlayerTags() {
+  try {
+    const raw = localStorage.getItem(PLAYER_TAGS_KEY);
+    if (!raw) return;
+    playerTags = JSON.parse(raw) || {};
+    roster.forEach((p) => {
+      if (playerTags[p.id]) p.positionTags = playerTags[p.id];
+    });
+  } catch (_) {}
+}
+
+function savePlayerTags() {
+  try {
+    localStorage.setItem(PLAYER_TAGS_KEY, JSON.stringify(playerTags));
+  } catch (_) {}
+}
+
+function setPlayerTags(playerId, tags) {
+  playerTags[playerId] = tags;
+  const player = getPlayer(playerId);
+  if (player) player.positionTags = tags;
+  savePlayerTags();
+  const cp = customPlayers.find((c) => c.id === playerId);
+  if (cp) { cp.positionTags = [...tags]; saveCustomPlayers(); }
+  renderRoster();
+}
+
 function compactBattingOrders() {
   [...getActiveBatterIds()]
     .sort((a, b) => (battingOrders[a] || 99) - (battingOrders[b] || 99))
@@ -675,6 +730,7 @@ function renderRoster() {
         btn.type = "button";
         btn.className = `pos-filter-btn${positionFilter === tag ? " is-active" : ""}`;
         btn.textContent = tag;
+        btn.title = POSITION_TOOLTIPS[tag] || tag;
         btn.addEventListener("click", () => {
           positionFilter = positionFilter === tag ? "" : tag;
           renderRoster();
@@ -702,14 +758,17 @@ function renderRoster() {
       const battingPrefix = getBattingPrefix(player);
       const isDh = dhEnabled && dhAssignment === player.id;
       const canEditOrder = getActiveBatterIds().includes(player.id);
-      const posTagsHtml = player.positionTags?.length
+      const posTagsHtml = (groupName !== "Elenco" && player.positionTags?.length)
         ? `<span class="roster-pos-tags">${player.positionTags.map((t) => `<span class="roster-pos-tag">${escapeHtml(t)}</span>`).join("")}</span>`
         : "";
+      const avgText = formatPlayerAvg(player.id);
+      const avgBadge = avgText ? `<span class="roster-avg-badge" title="Média de rebatidas">${avgText}</span>` : "";
 
       card.innerHTML = `
         <img class="roster-photo" alt="Foto de ${escapeHtml(player.name)}" src="${escapeHtml(player.photo)}" />
         <span class="roster-name">${battingPrefix}${escapeHtml(player.name)}${isDh ? " DH" : ""}</span>
         <span class="roster-number">${player.number ? `#${escapeHtml(player.number)}` : "sem numero"}</span>
+        ${avgBadge}
         ${posTagsHtml}
         <span class="roster-status">${escapeHtml(getPlayerStatus(player, assignedPosition))}</span>
         ${canEditOrder ? renderOrderSelect(player) : ""}
@@ -783,6 +842,28 @@ function renderRoster() {
           removeCustomPlayer(player.id);
         });
         card.append(deleteBtn);
+      }
+
+      if (groupName === "Elenco") {
+        const tagEditor = document.createElement("div");
+        tagEditor.className = "card-tag-editor";
+        ["P", "C", "IF", "OF", "UT"].forEach((tag) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = `card-tag-btn${(player.positionTags || []).includes(tag) ? " is-active" : ""}`;
+          btn.textContent = tag;
+          btn.title = POSITION_TOOLTIPS[tag] || tag;
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const current = player.positionTags || [];
+            const newTags = current.includes(tag)
+              ? current.filter((t) => t !== tag)
+              : [...current, tag];
+            setPlayerTags(player.id, newTags);
+          });
+          tagEditor.append(btn);
+        });
+        card.append(tagEditor);
       }
 
       grid.append(card);
@@ -1479,6 +1560,7 @@ if (PAGE === "lineup") {
     if (e.key === "Enter") document.querySelector("#addPlayerSave")?.click();
   });
 
+  loadPlayerTags();
   loadCustomPlayers();
   loadLineupState();
   render();
