@@ -3369,6 +3369,82 @@ details[open] .historico-summary::before {
   font-size: 1.25rem;
 }
 
+.gd-history-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.gd-history-danger {
+  min-height: 30px;
+  border: 1px solid rgba(248,113,113,0.38);
+  border-radius: 6px;
+  background: rgba(127,29,29,0.32);
+  color: #fecaca;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 0 10px;
+  text-transform: uppercase;
+}
+
+.gd-history-danger.is-ghost {
+  background: transparent;
+}
+
+.gd-history-score-edit {
+  grid-template-columns: minmax(0, 1fr) 42px auto 42px minmax(0, 1fr) auto;
+}
+
+.gd-history-score-edit label {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.gd-history-score-edit label span {
+  color: var(--text-muted);
+  font-size: 0.58rem;
+}
+
+.gd-history-score-edit input {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 5px;
+  background: rgba(0,0,0,0.22);
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  outline: none;
+  padding: 5px 6px;
+}
+
+.gd-history-score-edit input:focus,
+.gd-history-stat-input:focus {
+  border-color: rgba(246,195,71,0.62);
+}
+
+.gd-history-score-input {
+  text-align: center;
+}
+
+.gd-history-score-edit small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 900;
+}
+
+.gd-history-score-edit small input {
+  width: 38px;
+  text-align: center;
+}
+
 .gd-history-stats-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -3419,6 +3495,61 @@ details[open] .historico-summary::before {
   color: var(--text-muted);
   font-size: 0.6rem;
   font-weight: 700;
+}
+
+.gd-history-player-edit {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 4px;
+  align-items: center;
+}
+
+.gd-history-player-edit > span:first-child {
+  grid-row: span 2;
+  text-align: right;
+}
+
+.gd-history-player-input,
+.gd-history-player-meta input {
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  background: rgba(0,0,0,0.22);
+  color: #f0ead8;
+  font: inherit;
+  font-weight: 800;
+  outline: none;
+  padding: 4px 5px;
+}
+
+.gd-history-player-input:focus,
+.gd-history-player-meta input:focus {
+  border-color: rgba(246,195,71,0.62);
+}
+
+.gd-history-player-meta {
+  display: flex !important;
+  gap: 4px;
+}
+
+.gd-history-player-meta input {
+  width: 46px;
+  color: var(--text-muted);
+  font-size: 0.62rem;
+}
+
+.gd-history-stat-input {
+  width: 42px;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 5px;
+  background: rgba(0,0,0,0.22);
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  outline: none;
+  padding: 4px 2px;
+  text-align: center;
 }
 
 .gd-match-history-summary,
@@ -4642,6 +4773,19 @@ details[open] .historico-summary::before {
   .gd-history-score strong {
     grid-row: 1 / span 2;
     grid-column: 2;
+  }
+
+  .gd-history-score-edit {
+    grid-template-columns: 1fr 38px auto 38px;
+  }
+
+  .gd-history-score-edit label {
+    grid-column: span 2;
+  }
+
+  .gd-history-score-edit em,
+  .gd-history-score-edit small {
+    grid-column: span 2;
   }
 
   .gd-history-page-head {

@@ -1939,6 +1939,40 @@ function saveMatchHistory(history) {
   catch (_) {}
 }
 
+function saveMatchHistoryAndSync(history) {
+  saveMatchHistory(history);
+  if (typeof autosaveJogo === "function") autosaveJogo();
+}
+
+function updateMatchHistoryEntry(matchId, updater) {
+  const history = loadMatchHistory();
+  const index = history.findIndex((entry) => entry.id === matchId);
+  if (index === -1) return;
+  const entry = JSON.parse(JSON.stringify(history[index]));
+  updater(entry);
+  history[index] = entry;
+  saveMatchHistoryAndSync(history);
+  renderMatchHistory();
+  renderHistoryPage();
+}
+
+function deleteMatchHistoryEntry(matchId) {
+  if (!matchId || !confirm("Apagar esta partida do histórico?")) return;
+  const history = loadMatchHistory().filter((entry) => entry.id !== matchId);
+  activeMatchHistoryId = history[0]?.id || "";
+  saveMatchHistoryAndSync(history);
+  renderMatchHistory();
+  renderHistoryPage();
+}
+
+function clearMatchHistory() {
+  if (!confirm("Apagar TODO o histórico de partidas?")) return;
+  activeMatchHistoryId = "";
+  saveMatchHistoryAndSync([]);
+  renderMatchHistory();
+  renderHistoryPage();
+}
+
 function currentScoreSnapshot() {
   computeRuns();
   return {
@@ -1978,7 +2012,7 @@ function archiveCurrentMatch() {
   };
   const history = loadMatchHistory();
   history.unshift(entry);
-  saveMatchHistory(history);
+  saveMatchHistoryAndSync(history);
   renderMatchHistory();
   return entry;
 }
@@ -2127,8 +2161,31 @@ function renderHistorySummaryCards(targetId) {
 }
 
 function historyStatRow(label, stat = {}, extra = "") {
+  const opts = (extra && typeof extra === "object") ? extra : {};
+  const detail = (extra && typeof extra === "object") ? opts.extra || "" : extra;
+  if (opts.matchId && opts.statKey) {
+    const input = (field) => `<input class="gd-history-stat-input" type="number" min="0" value="${stat[field] || 0}" data-history-stat-key="${escapeHtml(opts.statKey)}" data-history-stat-field="${field}" />`;
+    const nameCell = opts.lineup
+      ? `<td class="gd-history-player gd-history-player-edit">
+          <span>${opts.order || ""}</span>
+          <input class="gd-history-player-input" type="text" value="${escapeHtml(opts.name || "")}" data-history-lineup="${escapeHtml(opts.lineup)}" data-history-lineup-index="${opts.index}" data-history-lineup-field="name" />
+          <span class="gd-history-player-meta">
+            ${opts.lineup === "ourLineup" ? `<input type="text" value="${escapeHtml(opts.position || "")}" placeholder="POS" data-history-lineup="${escapeHtml(opts.lineup)}" data-history-lineup-index="${opts.index}" data-history-lineup-field="position" />` : ""}
+            <input type="text" value="${escapeHtml(opts.number || "")}" placeholder="#" data-history-lineup="${escapeHtml(opts.lineup)}" data-history-lineup-index="${opts.index}" data-history-lineup-field="number" />
+          </span>
+        </td>`
+      : `<td class="gd-history-player">${escapeHtml(label)}${detail ? `<span>${escapeHtml(detail)}</span>` : ""}</td>`;
+    return `<tr>
+      ${nameCell}
+      <td>${input("ab")}</td>
+      <td>${input("h")}</td>
+      <td>${input("bb")}</td>
+      <td>${input("k")}</td>
+      <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
+    </tr>`;
+  }
   return `<tr>
-    <td class="gd-history-player">${escapeHtml(label)}${extra ? `<span>${escapeHtml(extra)}</span>` : ""}</td>
+    <td class="gd-history-player">${escapeHtml(label)}${detail ? `<span>${escapeHtml(detail)}</span>` : ""}</td>
     <td>${stat.ab || 0}</td>
     <td>${stat.h || 0}</td>
     <td>${stat.bb || 0}</td>
@@ -2147,8 +2204,8 @@ function renderHistoryStatsTable(title, rows) {
   </section>`;
 }
 
-function renderMatchHistoryDetail(entry) {
-  const detail = document.querySelector("#matchHistoryDetail");
+function renderMatchHistoryDetail(entry, targetSelector = "#matchHistoryDetail") {
+  const detail = document.querySelector(targetSelector);
   if (!detail) return;
   if (!entry) {
     detail.innerHTML = "";
@@ -2162,24 +2219,96 @@ function renderMatchHistoryDetail(entry) {
   const ourLineup = entry.ourLineup || [];
   const opponentRows = entry.opponentLineup || [];
   const ourRows = ourLineup
-    .map((player) => historyStatRow(`${player.order}. ${player.name}`, stats[player.id] || {}, [player.position, player.number ? `#${player.number}` : ""].filter(Boolean).join(" ")))
+    .map((player, index) => historyStatRow(`${player.order}. ${player.name}`, stats[player.id] || {}, {
+      matchId: entry.id,
+      statKey: player.id,
+      extra: [player.position, player.number ? `#${player.number}` : ""].filter(Boolean).join(" "),
+      lineup: "ourLineup",
+      index,
+      order: player.order,
+      name: player.name,
+      position: player.position,
+      number: player.number,
+    }))
     .join("");
   const oppRows = opponentRows
-    .map((row, index) => historyStatRow(`${row.order || index + 1}. ${row.name || `Adversario ${index + 1}`}`, stats[getOpponentStatKey(index)] || stats[`away_${index}`] || stats[`home_${index}`] || {}, row.number ? `#${row.number}` : ""))
+    .map((row, index) => historyStatRow(`${row.order || index + 1}. ${row.name || `Adversario ${index + 1}`}`, stats[getOpponentStatKey(index)] || stats[`away_${index}`] || stats[`home_${index}`] || {}, {
+      matchId: entry.id,
+      statKey: getOpponentStatKey(index),
+      extra: row.number ? `#${row.number}` : "",
+      lineup: "opponentLineup",
+      index,
+      order: row.order || index + 1,
+      name: row.name || "",
+      number: row.number || "",
+    }))
     .join("");
 
   detail.innerHTML = `
-    <div class="gd-history-score">
-      <span>${escapeHtml(ttbName)}</span>
-      <strong>${result.ttbRuns} - ${result.oppRuns}</strong>
-      <span>${escapeHtml(oppName)}</span>
+    <div class="gd-history-editor-actions">
+      <button type="button" class="gd-history-danger" data-history-delete="${escapeHtml(entry.id)}">Apagar partida</button>
+      <button type="button" class="gd-history-danger is-ghost" data-history-clear>Apagar tudo</button>
+    </div>
+    <div class="gd-history-score gd-history-score-edit">
+      <label><span>Visitante</span><input type="text" value="${escapeHtml(score.awayName || "Visitante")}" data-history-score-field="awayName" /></label>
+      <input class="gd-history-score-input" type="number" min="0" value="${score.awayRuns ?? 0}" data-history-score-field="awayRuns" />
+      <strong>-</strong>
+      <input class="gd-history-score-input" type="number" min="0" value="${score.homeRuns ?? 0}" data-history-score-field="homeRuns" />
+      <label><span>Casa</span><input type="text" value="${escapeHtml(score.homeName || "TTB")}" data-history-score-field="homeName" /></label>
       <em class="${result.className}">${result.label}</em>
+      <small>H <input type="number" min="0" value="${score.awayHits ?? 0}" data-history-score-field="awayHits" /> - <input type="number" min="0" value="${score.homeHits ?? 0}" data-history-score-field="homeHits" /></small>
+      <small>E <input type="number" min="0" value="${score.awayErrors ?? 0}" data-history-score-field="awayErrors" /> - <input type="number" min="0" value="${score.homeErrors ?? 0}" data-history-score-field="homeErrors" /></small>
     </div>
     <div class="gd-history-stats-grid">
       ${renderHistoryStatsTable(ttbName, ourRows)}
       ${renderHistoryStatsTable(oppName, oppRows)}
     </div>
   `;
+  bindHistoryEditor(detail, entry.id);
+}
+
+function bindHistoryEditor(root, matchId) {
+  root.querySelectorAll("[data-history-score-field]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const field = event.currentTarget.dataset.historyScoreField;
+      updateMatchHistoryEntry(matchId, (entry) => {
+        if (!entry.score) entry.score = {};
+        const isText = field === "awayName" || field === "homeName";
+        entry.score[field] = isText
+          ? event.currentTarget.value.trim()
+          : Math.max(0, parseInt(event.currentTarget.value, 10) || 0);
+      });
+    });
+  });
+
+  root.querySelectorAll("[data-history-stat-key][data-history-stat-field]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const key = event.currentTarget.dataset.historyStatKey;
+      const field = event.currentTarget.dataset.historyStatField;
+      const value = Math.max(0, parseInt(event.currentTarget.value, 10) || 0);
+      updateMatchHistoryEntry(matchId, (entry) => {
+        if (!entry.playerStats) entry.playerStats = {};
+        if (!entry.playerStats[key]) entry.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0 };
+        entry.playerStats[key][field] = value;
+      });
+    });
+  });
+
+  root.querySelectorAll("[data-history-lineup][data-history-lineup-field]").forEach((input) => {
+    input.addEventListener("change", (event) => {
+      const lineup = event.currentTarget.dataset.historyLineup;
+      const index = Number(event.currentTarget.dataset.historyLineupIndex);
+      const field = event.currentTarget.dataset.historyLineupField;
+      const value = event.currentTarget.value.trim();
+      updateMatchHistoryEntry(matchId, (entry) => {
+        if (!Array.isArray(entry[lineup]) || !entry[lineup][index]) return;
+        entry[lineup][index][field] = value;
+      });
+    });
+  });
+
+  root.querySelector("[data-history-delete]")?.addEventListener("click", () => deleteMatchHistoryEntry(matchId));
+  root.querySelector("[data-history-clear]")?.addEventListener("click", clearMatchHistory);
 }
 
 function renderMatchHistory() {
@@ -2555,30 +2684,7 @@ function renderHistoryArchivePage() {
       renderHistoryArchivePage();
     });
   });
-  const entry = history.find((item) => item.id === activeMatchHistoryId) || history[0];
-  const score = entry.score || {};
-  const result = getMatchResult(entry);
-  const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
-  const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
-  const stats = entry.playerStats || {};
-  const ourRows = (entry.ourLineup || [])
-    .map((player) => historyStatRow(`${player.order}. ${player.name}`, stats[player.id] || {}, [player.position, player.number ? `#${player.number}` : ""].filter(Boolean).join(" ")))
-    .join("");
-  const oppRows = (entry.opponentLineup || [])
-    .map((row, index) => historyStatRow(`${row.order || index + 1}. ${row.name || `Adversario ${index + 1}`}`, stats[getOpponentStatKey(index)] || stats[`away_${index}`] || stats[`home_${index}`] || {}, row.number ? `#${row.number}` : ""))
-    .join("");
-  detail.innerHTML = `
-    <div class="gd-history-score">
-      <span>${escapeHtml(ttbName)}</span>
-      <strong>${result.ttbRuns} - ${result.oppRuns}</strong>
-      <span>${escapeHtml(oppName)}</span>
-      <em class="${result.className}">${result.label}</em>
-    </div>
-    <div class="gd-history-stats-grid">
-      ${renderHistoryStatsTable(ttbName, ourRows)}
-      ${renderHistoryStatsTable(oppName, oppRows)}
-    </div>
-  `;
+  renderMatchHistoryDetail(history.find((item) => item.id === activeMatchHistoryId) || history[0], "#historyPageArchiveDetail");
 }
 
 function setStatusView(view) {
