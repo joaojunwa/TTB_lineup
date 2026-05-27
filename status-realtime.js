@@ -1,6 +1,6 @@
 const GAME_ID       = "ttb_jogo_ativo";
-const RT_URL        = "https://kosjrebuehulcccbjmks.supabase.co";
-const RT_KEY        = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvc2pyZWJ1ZWh1bGNjY2JqbWtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDk0MjgsImV4cCI6MjA5MzcyNTQyOH0.ykX3sBp9wJvJx88NYO1Rw470UDseND6bSmFc190YLII";
+const RT_URL        = typeof AUTH_SUPABASE_URL !== "undefined" ? AUTH_SUPABASE_URL : "https://kosjrebuehulcccbjmks.supabase.co";
+const RT_KEY        = typeof AUTH_SUPABASE_KEY !== "undefined" ? AUTH_SUPABASE_KEY : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtvc2pyZWJ1ZWh1bGNjY2JqbWtzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgxNDk0MjgsImV4cCI6MjA5MzcyNTQyOH0.ykX3sBp9wJvJx88NYO1Rw470UDseND6bSmFc190YLII";
 
 let _db         = null;
 let _saveTimer  = null;
@@ -24,6 +24,7 @@ function coletarEstado() {
 
   return {
     gameState:      JSON.parse(JSON.stringify(gameState)),
+    lineupState:    typeof getLineupStateSnapshot === "function" ? getLineupStateSnapshot() : null,
     innings,
     opponentLineup: JSON.parse(JSON.stringify(opponentLineup)),
     ttbSide: typeof ttbSide === "string" ? ttbSide : "home",
@@ -42,11 +43,13 @@ async function salvarJogo() {
   if (!_db) return;
   setIndicador("saving");
   try {
-    const { error } = await _db.from("jogos").upsert({
-      id: GAME_ID,
-      state: coletarEstado(),
-      updated_at: new Date().toISOString(),
-    });
+    const { error } = await _db
+      .from("jogos")
+      .upsert({
+        id: GAME_ID,
+        state: coletarEstado(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
     if (error) throw error;
     setIndicador("connected");
   } catch (err) {
@@ -61,6 +64,9 @@ function aplicarEstado(estado) {
   _applying = true;
   try {
     if (estado.gameState) Object.assign(gameState, estado.gameState);
+    if (estado.lineupState && typeof applyLineupStateSnapshot === "function") {
+      applyLineupStateSnapshot(estado.lineupState, { persist: true, respectLocalUpdated: true });
+    }
 
     if (estado.innings) {
       Object.entries(estado.innings).forEach(([key, val]) => {
@@ -106,6 +112,7 @@ async function carregarJogo() {
       .maybeSingle();
     if (error) throw error;
     if (data?.state) aplicarEstado(data.state);
+    setIndicador("connected");
   } catch (err) {
     console.error("Erro ao carregar jogo:", err);
     setIndicador("error");
@@ -126,6 +133,7 @@ function inscreverRealtime() {
     )
     .subscribe((status) => {
       if (status === "SUBSCRIBED") setIndicador("connected");
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setIndicador("error");
     });
 }
 
@@ -140,6 +148,7 @@ function setIndicador(status) {
     connecting: "Conectando...",
     saving:     "Salvando...",
     error:      "Erro",
+    offline:    "Offline",
   };
   dot.title = labels[status] || status;
   if (lbl) lbl.textContent = labels[status] || status;
@@ -223,6 +232,7 @@ if (PAGE === "status") {
     inscreverComentarios();
   } else {
     console.warn("Supabase CDN não disponível — modo offline.");
+    setIndicador("offline");
   }
   document.querySelector("#btnNovoJogo")?.addEventListener("click", novoJogo);
 

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Status do Jogo — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=10" />
+    <link rel="stylesheet" href="styles.css?v=11" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -16,7 +16,8 @@
         <span class="gd-nav-brand eyebrow">TTB Baseball</span>
         <div class="tab-nav" aria-label="Abas">
           <a class="tab-btn" href="index.html">Lineup</a>
-          <a class="tab-btn is-active" href="status.html">Status</a>
+          <a id="statusTopTab" class="tab-btn is-active" href="status.html">Status</a>
+          <a id="historyTopTab" class="tab-btn" href="status.html?view=history">Histórico</a>
           <a class="tab-btn tab-btn-teste" href="teste.html">Teste</a>
           <a class="tab-btn" href="stats.html">Stats</a>
         </div>
@@ -199,6 +200,7 @@
                 <div id="opponentLineup" class="opponent-lineup"></div>
               </div>
               <div id="historyLineupPanel" class="gd-lineup-panel" hidden>
+                <div id="matchHistorySummary" class="gd-match-history-summary"></div>
                 <div id="matchHistoryList" class="gd-match-history-list"></div>
                 <div id="matchHistoryDetail" class="gd-match-history-detail"></div>
               </div>
@@ -207,11 +209,39 @@
           </aside>
         </div>
       </section>
+
+      <section id="historyPage" class="gd-history-page" hidden>
+        <div class="gd-history-page-head">
+          <div>
+            <p class="eyebrow">Box Score</p>
+            <h1>Histórico</h1>
+          </div>
+          <div id="historyPageScore" class="gd-history-page-score"></div>
+        </div>
+
+        <div class="gd-history-page-layout">
+          <section class="gd-history-box">
+            <div class="gd-history-page-tabs" aria-label="Histórico de stats">
+              <button class="gd-history-page-tab is-active" type="button" data-history-page-tab="our">Nosso Time</button>
+              <button class="gd-history-page-tab" type="button" data-history-page-tab="opponent">Adversário</button>
+              <button class="gd-history-page-tab" type="button" data-history-page-tab="archive">Histórico</button>
+            </div>
+            <div id="historyPageContent" class="gd-history-page-content"></div>
+          </section>
+
+          <aside class="gd-history-aside">
+            <div class="gd-history-aside-head">
+              <span>Resumo</span>
+            </div>
+            <div id="historyPageSummary" class="gd-history-aside-body"></div>
+          </aside>
+        </div>
+      </section>
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=10"></script>
-    <script src="status-realtime.js?v=10"></script>
+    <script src="app.js?v=11"></script>
+    <script src="status-realtime.js?v=11"></script>
   </body>
 </html>

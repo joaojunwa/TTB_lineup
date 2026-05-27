@@ -36,7 +36,9 @@ let playerTags = {};
 const PLAYER_STATS_KEY = "ttb_player_stats_v2";
 const PLAYER_STATS_UPDATED_KEY = "ttb_player_stats_updated_at";
 const PLAYER_STATS_REMOTE_ID = "ttb_player_stats_global";
+const ACTIVE_STATUS_GAME_ID = "ttb_jogo_ativo";
 let playerStatsSaveTimer = null;
+let activeGameLineupSaveTimer = null;
 
 const POSITION_TOOLTIPS = {
   P:  "Pitcher",
@@ -139,16 +141,10 @@ async function syncSitePlayerStatsFromRemote() {
 function saveLineupState() {
   try {
     if (document.body.classList.contains("is-viewing-other")) return;
-    localStorage.setItem("ttb_lineup_" + getUser(), JSON.stringify({
-      assignments,
-      battingOrders,
-      lineupPending: [...lineupPending],
-      bancoPlayers:  [...bancoPlayers],
-      dhEnabled,
-      dhAssignment,
-      designatedPitcherId,
-    }));
+    const snapshot = getLineupStateSnapshot();
+    localStorage.setItem("ttb_lineup_" + getUser(), JSON.stringify(snapshot));
     if (typeof autosaveLineup === "function") autosaveLineup();
+    scheduleActiveGameLineupSync(snapshot);
   } catch (_) {}
 }
 
@@ -156,16 +152,108 @@ function loadLineupState() {
   try {
     const raw = localStorage.getItem("ttb_lineup_" + getUser());
     if (!raw) return;
-    const s = JSON.parse(raw);
-    if (!s || typeof s !== "object") return;
-    if (s.assignments   && typeof s.assignments === "object")   assignments   = s.assignments;
-    if (s.battingOrders && typeof s.battingOrders === "object") battingOrders = s.battingOrders;
-    if (Array.isArray(s.lineupPending)) lineupPending = new Set(s.lineupPending);
-    if (Array.isArray(s.bancoPlayers))  bancoPlayers  = new Set(s.bancoPlayers);
-    dhEnabled           = Boolean(s.dhEnabled);
-    dhAssignment        = typeof s.dhAssignment        === "string" ? s.dhAssignment        : "";
-    designatedPitcherId = typeof s.designatedPitcherId === "string" ? s.designatedPitcherId : "";
+    applyLineupStateSnapshot(JSON.parse(raw), { persist: false });
   } catch (_) {}
+}
+
+function getLineupStateSnapshot() {
+  return {
+    updatedAt: new Date().toISOString(),
+    assignments: { ...assignments },
+    battingOrders: { ...battingOrders },
+    lineupPending: [...lineupPending],
+    bancoPlayers:  [...bancoPlayers],
+    dhEnabled,
+    dhAssignment,
+    designatedPitcherId,
+    customPlayers: JSON.parse(JSON.stringify(customPlayers || [])),
+    playerTags: JSON.parse(JSON.stringify(playerTags || {})),
+  };
+}
+
+function applyLineupStateSnapshot(state, options = {}) {
+  if (!state || typeof state !== "object") return;
+  if (options.respectLocalUpdated) {
+    try {
+      const local = JSON.parse(localStorage.getItem("ttb_lineup_" + getUser()) || "null");
+      const localUpdated = local?.updatedAt || "";
+      const remoteUpdated = state.updatedAt || "";
+      if (localUpdated && (!remoteUpdated || localUpdated > remoteUpdated)) return;
+    } catch (_) {}
+  }
+  if (Array.isArray(state.customPlayers)) {
+    state.customPlayers.forEach((cp) => {
+      if (!cp?.id || roster.some((p) => p.id === cp.id)) return;
+      customPlayers.push(cp);
+      roster.push({ ...cp, group: "Elenco", battingOrder: "" });
+    });
+    saveCustomPlayers();
+  }
+  if (state.playerTags && typeof state.playerTags === "object") {
+    playerTags = { ...playerTags, ...state.playerTags };
+    roster.forEach((p) => {
+      if (playerTags[p.id]) p.positionTags = playerTags[p.id];
+    });
+    savePlayerTags();
+  }
+  if (state.assignments   && typeof state.assignments === "object")   assignments   = state.assignments;
+  if (state.battingOrders && typeof state.battingOrders === "object") battingOrders = state.battingOrders;
+  if (Array.isArray(state.lineupPending)) lineupPending = new Set(state.lineupPending);
+  if (Array.isArray(state.bancoPlayers))  bancoPlayers  = new Set(state.bancoPlayers);
+  dhEnabled           = Boolean(state.dhEnabled);
+  dhAssignment        = typeof state.dhAssignment        === "string" ? state.dhAssignment        : "";
+  designatedPitcherId = typeof state.designatedPitcherId === "string" ? state.designatedPitcherId : "";
+  if (options.persist) {
+    try { localStorage.setItem("ttb_lineup_" + getUser(), JSON.stringify(getLineupStateSnapshot())); }
+    catch (_) {}
+  }
+}
+
+function canSyncActiveGameLineup() {
+  return (
+    typeof AUTH_SUPABASE_URL !== "undefined" &&
+    typeof AUTH_SUPABASE_KEY !== "undefined" &&
+    typeof isAdmin === "function" &&
+    isAdmin()
+  );
+}
+
+function scheduleActiveGameLineupSync(snapshot) {
+  if (PAGE !== "lineup" || !canSyncActiveGameLineup()) return;
+  clearTimeout(activeGameLineupSaveTimer);
+  const lineupState = JSON.parse(JSON.stringify(snapshot || getLineupStateSnapshot()));
+  activeGameLineupSaveTimer = setTimeout(() => syncActiveGameLineup(lineupState), 700);
+}
+
+async function syncActiveGameLineup(lineupState) {
+  if (!canSyncActiveGameLineup()) return;
+  try {
+    const headers = {
+      apikey: AUTH_SUPABASE_KEY,
+      Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+    };
+    const read = await fetch(
+      `${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state&id=eq.${encodeURIComponent(ACTIVE_STATUS_GAME_ID)}`,
+      { headers },
+    );
+    if (!read.ok) throw new Error(await read.text());
+    const rows = await read.json();
+    const state = rows[0]?.state || {};
+    const updatedAt = new Date().toISOString();
+    const write = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?on_conflict=id`, {
+      method: "POST",
+      headers: { ...headers, Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({
+        id: ACTIVE_STATUS_GAME_ID,
+        state: { ...state, lineupState },
+        updated_at: updatedAt,
+      }),
+    });
+    if (!write.ok) throw new Error(await write.text());
+  } catch (err) {
+    console.warn("Lineup do status em modo local:", err);
+  }
 }
 
 const fieldSlots = document.querySelector("#fieldSlots");
@@ -1737,6 +1825,7 @@ let activeStatusLineupTab = "home";
 let opponentLineup = buildBlankOpponentLineup();
 let ttbSide = loadTtbSide();
 let activeMatchHistoryId = "";
+let activeHistoryPageTab = "our";
 
 function buildBlankOpponentLineup() {
   return Array.from({ length: 9 }, (_, index) => ({
@@ -1924,8 +2013,117 @@ function getMatchResult(entry) {
     : { label: "LOSE", className: "is-lose", ttbRuns, oppRuns };
 }
 
-function formatHistoryAvg(stat = {}) {
+function getStatAvgText(stat = {}) {
   return stat.ab > 0 ? "." + String(Math.round((stat.h / stat.ab) * 1000)).padStart(3, "0") : "—";
+}
+
+function formatHistoryAvg(stat = {}) {
+  return getStatAvgText(stat);
+}
+
+function addStatTotals(totals, stat = {}) {
+  totals.ab += stat.ab || 0;
+  totals.h  += stat.h  || 0;
+  totals.bb += stat.bb || 0;
+  totals.k  += stat.k  || 0;
+  return totals;
+}
+
+function getOurStatusRows() {
+  const batters = getStatusBatterList();
+  const current = batters.length ? getCurrentTeamBatterIndex(ttbSide) % batters.length : -1;
+  return batters.map((player, index) => ({
+    order: index + 1,
+    name: player.name,
+    sub: [getAssignedPosition(player.id), player.number ? `#${player.number}` : ""].filter(Boolean).join(" "),
+    stat: gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0 },
+    current: index === current,
+  }));
+}
+
+function getOpponentStatusRows() {
+  const side = opponentSide();
+  const current = opponentLineup.length ? getCurrentTeamBatterIndex(side) % opponentLineup.length : -1;
+  return opponentLineup.map((row, index) => ({
+    order: row.order || index + 1,
+    name: row.name || `Jogador ${row.order || index + 1}`,
+    sub: row.number ? `#${row.number}` : "",
+    stat: getOpponentStats(index),
+    current: index === current,
+  }));
+}
+
+function renderBoxStatsTable(title, rows) {
+  const totals = rows.reduce((sum, row) => addStatTotals(sum, row.stat), { ab: 0, h: 0, bb: 0, k: 0 });
+  const body = rows.map((row) => {
+    const s = row.stat || {};
+    return `<tr class="${row.current ? "gd-stat-current" : ""}">
+      <td class="gd-stat-num">${row.order}</td>
+      <td class="gd-stat-name">${escapeHtml(row.name)}${row.sub ? `<span class="gd-stat-pos"> ${escapeHtml(row.sub)}</span>` : ""}</td>
+      <td>${s.ab || 0}</td>
+      <td>${s.h || 0}</td>
+      <td>${s.bb || 0}</td>
+      <td>${s.k || 0}</td>
+      <td class="gd-stat-avg">${getStatAvgText(s)}</td>
+    </tr>`;
+  }).join("");
+  return `
+    <table class="gd-stats-table gd-history-page-table">
+      <colgroup>
+        <col class="gd-stat-order-col" />
+        <col class="gd-stat-name-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th colspan="2" class="gd-stats-head-team">${escapeHtml(title)}</th>
+          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${body || `<tr><td colspan="7">Sem jogadores.</td></tr>`}
+        <tr class="gd-stat-totals">
+          <td colspan="2">Totais</td>
+          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.bb}</td><td>${totals.k}</td>
+          <td class="gd-stat-avg">${getStatAvgText(totals)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
+function getHistorySummary(history = loadMatchHistory()) {
+  const summary = { wins: 0, losses: 0, ties: 0, runsFor: 0, runsAgainst: 0, ab: 0, h: 0 };
+  history.forEach((entry) => {
+    const result = getMatchResult(entry);
+    if (result.className === "is-win") summary.wins += 1;
+    else if (result.className === "is-lose") summary.losses += 1;
+    else summary.ties += 1;
+    summary.runsFor += result.ttbRuns;
+    summary.runsAgainst += result.oppRuns;
+    (entry.ourLineup || []).forEach((player) => {
+      const stat = entry.playerStats?.[player.id] || {};
+      summary.ab += stat.ab || 0;
+      summary.h += stat.h || 0;
+    });
+  });
+  return summary;
+}
+
+function renderHistorySummaryCards(targetId) {
+  const target = document.querySelector(`#${targetId}`);
+  if (!target) return;
+  const history = loadMatchHistory();
+  const summary = getHistorySummary(history);
+  target.innerHTML = `
+    <div class="gd-history-mini-stat"><span>Jogos</span><strong>${history.length}</strong></div>
+    <div class="gd-history-mini-stat"><span>Vitórias</span><strong>${summary.wins}</strong></div>
+    <div class="gd-history-mini-stat"><span>Pontos</span><strong>${summary.runsFor}-${summary.runsAgainst}</strong></div>
+    <div class="gd-history-mini-stat"><span>AVG Geral</span><strong>${getStatAvgText(summary)}</strong></div>
+  `;
 }
 
 function historyStatRow(label, stat = {}, extra = "") {
@@ -1987,6 +2185,7 @@ function renderMatchHistoryDetail(entry) {
 function renderMatchHistory() {
   const container = document.querySelector("#matchHistoryList");
   if (!container) return;
+  renderHistorySummaryCards("matchHistorySummary");
   const history = loadMatchHistory();
   if (history.length === 0) {
     container.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
@@ -2276,6 +2475,123 @@ function renderScoreboardLabels() {
   if (swapBtn) swapBtn.textContent = ttbSide === "home" ? "TTB em cima" : "TTB embaixo";
 }
 
+function currentTeamNames() {
+  const awayName = document.querySelector("#awayName")?.value || (ttbSide === "away" ? "TTB" : "Visitante");
+  const homeName = document.querySelector("#homeName")?.value || (ttbSide === "home" ? "TTB" : "Visitante");
+  return {
+    awayName,
+    homeName,
+    ourName: ttbSide === "away" ? awayName : homeName,
+    oppName: ttbSide === "away" ? homeName : awayName,
+  };
+}
+
+function renderHistoryPage() {
+  const page = document.querySelector("#historyPage");
+  if (!page || page.hidden) return;
+  computeRuns();
+  const names = currentTeamNames();
+  const score = currentScoreSnapshot();
+  const ourRuns = ttbSide === "away" ? score.awayRuns : score.homeRuns;
+  const oppRuns = ttbSide === "away" ? score.homeRuns : score.awayRuns;
+  const scoreEl = document.querySelector("#historyPageScore");
+  if (scoreEl) {
+    scoreEl.innerHTML = `
+      <span>${escapeHtml(names.ourName)}</span>
+      <strong>${ourRuns} - ${oppRuns}</strong>
+      <span>${escapeHtml(names.oppName)}</span>
+    `;
+  }
+
+  document.querySelectorAll("[data-history-page-tab]").forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.historyPageTab === activeHistoryPageTab);
+  });
+
+  const content = document.querySelector("#historyPageContent");
+  if (content) {
+    if (activeHistoryPageTab === "opponent") {
+      content.innerHTML = renderBoxStatsTable(names.oppName, getOpponentStatusRows());
+    } else if (activeHistoryPageTab === "archive") {
+      content.innerHTML = `<div class="gd-history-page-archive">
+        <div id="historyPageArchiveList" class="gd-match-history-list"></div>
+        <div id="historyPageArchiveDetail" class="gd-match-history-detail"></div>
+      </div>`;
+      renderHistoryArchivePage();
+    } else {
+      content.innerHTML = renderBoxStatsTable(names.ourName, getOurStatusRows());
+    }
+  }
+  renderHistorySummaryCards("historyPageSummary");
+}
+
+function renderHistoryArchivePage() {
+  const list = document.querySelector("#historyPageArchiveList");
+  const detail = document.querySelector("#historyPageArchiveDetail");
+  if (!list || !detail) return;
+  const history = loadMatchHistory();
+  if (history.length === 0) {
+    list.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
+    detail.innerHTML = "";
+    return;
+  }
+  if (!activeMatchHistoryId || !history.some((entry) => entry.id === activeMatchHistoryId)) {
+    activeMatchHistoryId = history[0]?.id || "";
+  }
+  list.innerHTML = history.slice(0, 12).map((entry) => {
+    const score = entry.score || {};
+    const result = getMatchResult(entry);
+    const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
+    const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
+    const date = new Date(entry.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    return `<button class="gd-match-history-item${activeMatchHistoryId === entry.id ? " is-active" : ""}" type="button" data-match-id="${escapeHtml(entry.id)}">
+      <span>${escapeHtml(date)}</span>
+      <strong>${escapeHtml(ttbName)} ${result.ttbRuns} - ${result.oppRuns} ${escapeHtml(oppName)} <em class="${result.className}">${result.label}</em></strong>
+      <small>H ${score.awayHits ?? 0}-${score.homeHits ?? 0} · E ${score.awayErrors ?? 0}-${score.homeErrors ?? 0}</small>
+    </button>`;
+  }).join("");
+  list.querySelectorAll("[data-match-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeMatchHistoryId = button.dataset.matchId || "";
+      renderHistoryArchivePage();
+    });
+  });
+  const entry = history.find((item) => item.id === activeMatchHistoryId) || history[0];
+  const score = entry.score || {};
+  const result = getMatchResult(entry);
+  const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
+  const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
+  const stats = entry.playerStats || {};
+  const ourRows = (entry.ourLineup || [])
+    .map((player) => historyStatRow(`${player.order}. ${player.name}`, stats[player.id] || {}, [player.position, player.number ? `#${player.number}` : ""].filter(Boolean).join(" ")))
+    .join("");
+  const oppRows = (entry.opponentLineup || [])
+    .map((row, index) => historyStatRow(`${row.order || index + 1}. ${row.name || `Adversario ${index + 1}`}`, stats[getOpponentStatKey(index)] || stats[`away_${index}`] || stats[`home_${index}`] || {}, row.number ? `#${row.number}` : ""))
+    .join("");
+  detail.innerHTML = `
+    <div class="gd-history-score">
+      <span>${escapeHtml(ttbName)}</span>
+      <strong>${result.ttbRuns} - ${result.oppRuns}</strong>
+      <span>${escapeHtml(oppName)}</span>
+      <em class="${result.className}">${result.label}</em>
+    </div>
+    <div class="gd-history-stats-grid">
+      ${renderHistoryStatsTable(ttbName, ourRows)}
+      ${renderHistoryStatsTable(oppName, oppRows)}
+    </div>
+  `;
+}
+
+function setStatusView(view) {
+  const isHistory = view === "history";
+  const statusTab = document.querySelector("#statusTab");
+  const historyPage = document.querySelector("#historyPage");
+  if (statusTab) statusTab.hidden = isHistory;
+  if (historyPage) historyPage.hidden = !isHistory;
+  document.querySelector("#statusTopTab")?.classList.toggle("is-active", !isHistory);
+  document.querySelector("#historyTopTab")?.classList.toggle("is-active", isHistory);
+  if (isHistory) renderHistoryPage();
+}
+
 function computeRuns() {
   ["away", "home"].forEach((team) => {
     const cells = document.querySelectorAll(`td[data-team="${team}"]`);
@@ -2408,6 +2724,7 @@ function renderStatus() {
   renderStatusLineupTabs();
   renderScoreboardLabels();
   renderMatchHistory();
+  renderHistoryPage();
   highlightCurrentInning();
   const gdBatter = document.querySelector("#gdCurrentBatter");
   if (gdBatter) gdBatter.textContent = getCurrentBatterLabel() || "— sem rebatedor —";
@@ -2509,9 +2826,37 @@ if (pitchWrapper && pitchZoneBox) {
 }
 
 if (PAGE === "status") {
+  loadCustomPlayers();
+  loadPlayerTags();
   loadLineupState();
   loadOpponentLineup();
   syncSitePlayerStatsFromRemote();
+  setStatusView(new URLSearchParams(window.location.search).get("view") === "history" ? "history" : "status");
+
+  document.querySelectorAll("[data-history-page-tab]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeHistoryPageTab = button.dataset.historyPageTab || "our";
+      renderHistoryPage();
+    });
+  });
+
+  function refreshStatusLineupFromStorage() {
+    loadCustomPlayers();
+    loadPlayerTags();
+    loadLineupState();
+    renderStatus();
+  }
+
+  window.addEventListener("focus", refreshStatusLineupFromStorage);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) refreshStatusLineupFromStorage();
+  });
+  window.addEventListener("storage", (event) => {
+    const lineupKey = "ttb_lineup_" + getUser();
+    if ([lineupKey, CUSTOM_PLAYERS_KEY, PLAYER_TAGS_KEY].includes(event.key)) {
+      refreshStatusLineupFromStorage();
+    }
+  });
 
   /* ── Status button handlers ── */
   document.querySelector("#btnBall")?.addEventListener("click", () => {

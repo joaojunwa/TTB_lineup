@@ -3421,6 +3421,140 @@ details[open] .historico-summary::before {
   font-weight: 700;
 }
 
+.gd-match-history-summary,
+.gd-history-aside-body {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+}
+
+.gd-history-mini-stat {
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.035);
+  padding: 8px;
+}
+
+.gd-history-mini-stat span {
+  color: var(--text-muted);
+  font-size: 0.62rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.gd-history-mini-stat strong {
+  color: #f0ead8;
+  font-size: 1rem;
+}
+
+.gd-history-page {
+  display: grid;
+  gap: 22px;
+  padding: 26px 0 38px;
+}
+
+.gd-history-page[hidden] {
+  display: none;
+}
+
+.gd-history-page-head {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.gd-history-page-head h1 {
+  margin: 0;
+}
+
+.gd-history-page-score {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  color: #f0ead8;
+  font-weight: 900;
+}
+
+.gd-history-page-score span {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gd-history-page-score strong {
+  color: #fff;
+  font-size: 2rem;
+}
+
+.gd-history-page-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 32%);
+  gap: 28px;
+  align-items: start;
+}
+
+.gd-history-box,
+.gd-history-aside {
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(12, 18, 28, 0.92);
+}
+
+.gd-history-page-tabs {
+  display: flex;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+}
+
+.gd-history-page-tab {
+  min-height: 56px;
+  padding: 0 24px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.gd-history-page-tab.is-active {
+  color: #f0ead8;
+  border-bottom-color: var(--accent);
+}
+
+.gd-history-page-content {
+  padding: 10px 16px 18px;
+  overflow-x: auto;
+}
+
+.gd-history-page-table {
+  font-size: 0.86rem;
+}
+
+.gd-history-page-table tbody td {
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.gd-history-aside-head {
+  border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 18px 20px;
+  color: #f0ead8;
+  font-weight: 900;
+  font-size: 1.15rem;
+}
+
+.gd-history-page-archive {
+  display: grid;
+  gap: 14px;
+}
+
 /* ══════════════════════════════════════════
    LOGIN PAGE
 ══════════════════════════════════════════ */
@@ -4206,6 +4340,7 @@ details[open] .historico-summary::before {
 .gd-rt-connecting { background: #f59e0b; animation: gd-blink 1.2s ease-in-out infinite; }
 .gd-rt-saving     { background: #22c55e; animation: gd-blink 0.5s ease-in-out infinite; }
 .gd-rt-error      { background: #ef4444; }
+.gd-rt-offline    { background: #64748b; }
 
 @keyframes gd-blink {
   0%, 100% { opacity: 1; }
@@ -4507,6 +4642,31 @@ details[open] .historico-summary::before {
   .gd-history-score strong {
     grid-row: 1 / span 2;
     grid-column: 2;
+  }
+
+  .gd-history-page-head {
+    align-items: start;
+    flex-direction: column;
+  }
+
+  .gd-history-page-layout {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .gd-history-page-tabs {
+    overflow-x: auto;
+  }
+
+  .gd-history-page-tab {
+    flex: 0 0 auto;
+    min-height: 48px;
+    padding: 0 16px;
+    font-size: 0.78rem;
+  }
+
+  .gd-history-page-score strong {
+    font-size: 1.5rem;
   }
 }
 
