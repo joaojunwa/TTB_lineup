@@ -1825,7 +1825,6 @@ let activeStatusLineupTab = "home";
 let opponentLineup = buildBlankOpponentLineup();
 let ttbSide = loadTtbSide();
 let activeMatchHistoryId = "";
-let activeHistoryPageTab = "our";
 
 function buildBlankOpponentLineup() {
   return Array.from({ length: 9 }, (_, index) => ({
@@ -2618,49 +2617,22 @@ function currentTeamNames() {
 function renderHistoryPage() {
   const page = document.querySelector("#historyPage");
   if (!page || page.hidden) return;
-  computeRuns();
-  const names = currentTeamNames();
-  const score = currentScoreSnapshot();
-  const ourRuns = ttbSide === "away" ? score.awayRuns : score.homeRuns;
-  const oppRuns = ttbSide === "away" ? score.homeRuns : score.awayRuns;
-  const scoreEl = document.querySelector("#historyPageScore");
-  if (scoreEl) {
-    scoreEl.innerHTML = `
-      <span>${escapeHtml(names.ourName)}</span>
-      <strong>${ourRuns} - ${oppRuns}</strong>
-      <span>${escapeHtml(names.oppName)}</span>
-    `;
-  }
-
-  document.querySelectorAll("[data-history-page-tab]").forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.historyPageTab === activeHistoryPageTab);
-  });
-
   const content = document.querySelector("#historyPageContent");
-  if (content) {
-    if (activeHistoryPageTab === "opponent") {
-      content.innerHTML = renderBoxStatsTable(names.oppName, getOpponentStatusRows());
-    } else if (activeHistoryPageTab === "archive") {
-      content.innerHTML = `<div class="gd-history-page-archive">
-        <div id="historyPageArchiveList" class="gd-match-history-list"></div>
-        <div id="historyPageArchiveDetail" class="gd-match-history-detail"></div>
-      </div>`;
-      renderHistoryArchivePage();
-    } else {
-      content.innerHTML = renderBoxStatsTable(names.ourName, getOurStatusRows());
-    }
-  }
+  if (content) content.innerHTML = `<div id="historyMatchDetail" class="gd-match-history-detail"></div>`;
+  renderHistoryMatchTabs();
   renderHistorySummaryCards("historyPageSummary");
 }
 
-function renderHistoryArchivePage() {
-  const list = document.querySelector("#historyPageArchiveList");
-  const detail = document.querySelector("#historyPageArchiveDetail");
+function renderHistoryMatchTabs() {
+  const list = document.querySelector("#historyMatchTabs");
+  const detail = document.querySelector("#historyMatchDetail");
+  const scoreEl = document.querySelector("#historyPageScore");
   if (!list || !detail) return;
   const history = loadMatchHistory();
   if (history.length === 0) {
     list.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
-    detail.innerHTML = "";
+    detail.innerHTML = `<p class="gd-match-history-empty">Arquive uma partida em Novo Jogo para ela aparecer aqui.</p>`;
+    if (scoreEl) scoreEl.innerHTML = "";
     return;
   }
   if (!activeMatchHistoryId || !history.some((entry) => entry.id === activeMatchHistoryId)) {
@@ -2672,7 +2644,7 @@ function renderHistoryArchivePage() {
     const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
     const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
     const date = new Date(entry.createdAt).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-    return `<button class="gd-match-history-item${activeMatchHistoryId === entry.id ? " is-active" : ""}" type="button" data-match-id="${escapeHtml(entry.id)}">
+    return `<button class="gd-history-match-tab${activeMatchHistoryId === entry.id ? " is-active" : ""}" type="button" data-match-id="${escapeHtml(entry.id)}" aria-expanded="${activeMatchHistoryId === entry.id}">
       <span>${escapeHtml(date)}</span>
       <strong>${escapeHtml(ttbName)} ${result.ttbRuns} - ${result.oppRuns} ${escapeHtml(oppName)} <em class="${result.className}">${result.label}</em></strong>
       <small>H ${score.awayHits ?? 0}-${score.homeHits ?? 0} · E ${score.awayErrors ?? 0}-${score.homeErrors ?? 0}</small>
@@ -2681,10 +2653,22 @@ function renderHistoryArchivePage() {
   list.querySelectorAll("[data-match-id]").forEach((button) => {
     button.addEventListener("click", () => {
       activeMatchHistoryId = button.dataset.matchId || "";
-      renderHistoryArchivePage();
+      renderHistoryMatchTabs();
     });
   });
-  renderMatchHistoryDetail(history.find((item) => item.id === activeMatchHistoryId) || history[0], "#historyPageArchiveDetail");
+  const entry = history.find((item) => item.id === activeMatchHistoryId) || history[0];
+  const score = entry.score || {};
+  const result = getMatchResult(entry);
+  const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
+  const oppName = entry.ttbSide === "away" ? score.homeName || "Visitante" : score.awayName || "Visitante";
+  if (scoreEl) {
+    scoreEl.innerHTML = `
+      <span>${escapeHtml(ttbName)}</span>
+      <strong>${result.ttbRuns} - ${result.oppRuns}</strong>
+      <span>${escapeHtml(oppName)}</span>
+    `;
+  }
+  renderMatchHistoryDetail(entry, "#historyMatchDetail");
 }
 
 function setStatusView(view) {
@@ -2938,13 +2922,6 @@ if (PAGE === "status") {
   loadOpponentLineup();
   syncSitePlayerStatsFromRemote();
   setStatusView(new URLSearchParams(window.location.search).get("view") === "history" ? "history" : "status");
-
-  document.querySelectorAll("[data-history-page-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      activeHistoryPageTab = button.dataset.historyPageTab || "our";
-      renderHistoryPage();
-    });
-  });
 
   function refreshStatusLineupFromStorage() {
     loadCustomPlayers();

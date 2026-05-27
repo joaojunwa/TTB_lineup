@@ -3638,7 +3638,62 @@ details[open] .historico-summary::before {
 
 .gd-history-page-tabs {
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
+  padding: 12px;
+}
+
+.gd-history-match-tab {
+  display: grid;
+  gap: 3px;
+  min-width: 190px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  background: rgba(255,255,255,0.035);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  padding: 8px 10px;
+  position: relative;
+  text-align: left;
+}
+
+.gd-history-match-tab::after {
+  content: "▾";
+  position: absolute;
+  right: 10px;
+  top: 8px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+}
+
+.gd-history-match-tab.is-active {
+  border-color: rgba(246,195,71,0.72);
+  background: rgba(246,195,71,0.08);
+}
+
+.gd-history-match-tab.is-active::after {
+  color: var(--accent);
+}
+
+.gd-history-match-tab span,
+.gd-history-match-tab small {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.gd-history-match-tab strong {
+  padding-right: 16px;
+  color: #f0ead8;
+  font-size: 0.8rem;
+  line-height: 1.25;
+}
+
+.gd-history-match-tab em {
+  font-style: normal;
+  font-weight: 900;
 }
 
 .gd-history-page-tab {

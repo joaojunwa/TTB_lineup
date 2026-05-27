@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Status do Jogo — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=12" />
+    <link rel="stylesheet" href="styles.css?v=13" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -221,11 +221,7 @@
 
         <div class="gd-history-page-layout">
           <section class="gd-history-box">
-            <div class="gd-history-page-tabs" aria-label="Histórico de stats">
-              <button class="gd-history-page-tab is-active" type="button" data-history-page-tab="our">Nosso Time</button>
-              <button class="gd-history-page-tab" type="button" data-history-page-tab="opponent">Adversário</button>
-              <button class="gd-history-page-tab" type="button" data-history-page-tab="archive">Histórico</button>
-            </div>
+            <div id="historyMatchTabs" class="gd-history-page-tabs" aria-label="Partidas arquivadas"></div>
             <div id="historyPageContent" class="gd-history-page-content"></div>
           </section>
 
@@ -241,7 +237,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=12"></script>
-    <script src="status-realtime.js?v=12"></script>
+    <script src="app.js?v=13"></script>
+    <script src="status-realtime.js?v=13"></script>
   </body>
 </html>
