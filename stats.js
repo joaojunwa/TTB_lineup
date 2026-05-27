@@ -6,11 +6,32 @@ const STATS_SOURCE_KEY = "ttb_stats_sources";
 const STATS_UPDATED_KEY = "ttb_player_stats_updated_at";
 const STATS_REMOTE_ID   = "ttb_player_stats_global";
 const LIVE_BP_CACHE_KEY = "ttb_live_bp_stats_cache";
+const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
+const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
+const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
+
+const STAT_SOURCE_CONFIG = {
+  game: {
+    key: STATS_KEY,
+    updatedKey: STATS_UPDATED_KEY,
+    remoteId: STATS_REMOTE_ID,
+  },
+  liveBp: {
+    key: LIVE_BP_STATS_KEY,
+    updatedKey: LIVE_BP_STATS_UPDATED_KEY,
+    remoteId: LIVE_BP_STATS_REMOTE_ID,
+  },
+};
 
 /* ─── Storage ─────────────────────────────────────── */
 
 function _loadAllStats() {
-  try { return JSON.parse(localStorage.getItem(STATS_KEY)) || {}; }
+  return _loadSourceStats("game");
+}
+
+function _loadSourceStats(source = "game") {
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
+  try { return JSON.parse(localStorage.getItem(config.key)) || {}; }
   catch (_) { return {}; }
 }
 
@@ -24,13 +45,18 @@ function _saveStatsSources() {
 }
 
 function _saveAllStats(stats, options = {}) {
+  _saveSourceStats("game", stats, options);
+}
+
+function _saveSourceStats(source = "game", stats, options = {}) {
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
   try {
-    localStorage.setItem(STATS_KEY, JSON.stringify(stats));
-    if (options.updatedAt) localStorage.setItem(STATS_UPDATED_KEY, options.updatedAt);
-    else if (options.touch !== false) localStorage.setItem(STATS_UPDATED_KEY, new Date().toISOString());
+    localStorage.setItem(config.key, JSON.stringify(stats));
+    if (options.updatedAt) localStorage.setItem(config.updatedKey, options.updatedAt);
+    else if (options.touch !== false) localStorage.setItem(config.updatedKey, new Date().toISOString());
   }
   catch (_) {}
-  if (options.remote !== false) _scheduleRemoteStatsSave(stats);
+  if (options.remote !== false) _scheduleRemoteStatsSave(source, stats);
 }
 
 function _canUseRemoteStats() {
@@ -49,10 +75,11 @@ function _remoteStatsUrl(params = "") {
   return `${AUTH_SUPABASE_URL}/rest/v1/jogos${params}`;
 }
 
-async function _fetchRemoteStats() {
+async function _fetchRemoteStats(source = "game") {
   if (!_canUseRemoteStats()) return null;
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
   const res = await fetch(
-    _remoteStatsUrl(`?select=state,updated_at&id=eq.${encodeURIComponent(STATS_REMOTE_ID)}`),
+    _remoteStatsUrl(`?select=state,updated_at&id=eq.${encodeURIComponent(config.remoteId)}`),
     { headers: _remoteStatsHeaders() },
   );
   if (!res.ok) throw new Error(await res.text());
@@ -65,8 +92,9 @@ async function _fetchRemoteStats() {
   };
 }
 
-async function _saveRemoteStats(stats, updatedAt = new Date().toISOString()) {
+async function _saveRemoteStats(source = "game", stats, updatedAt = new Date().toISOString()) {
   if (!_canUseRemoteStats()) return;
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
   const res = await fetch(_remoteStatsUrl("?on_conflict=id"), {
     method: "POST",
     headers: _remoteStatsHeaders({
@@ -74,7 +102,7 @@ async function _saveRemoteStats(stats, updatedAt = new Date().toISOString()) {
       Prefer: "resolution=merge-duplicates,return=minimal",
     }),
     body: JSON.stringify({
-      id: STATS_REMOTE_ID,
+      id: config.remoteId,
       state: { stats, updated_at: updatedAt },
       updated_at: updatedAt,
     }),
@@ -82,36 +110,38 @@ async function _saveRemoteStats(stats, updatedAt = new Date().toISOString()) {
   if (!res.ok) throw new Error(await res.text());
 }
 
-let _remoteSaveTimer = null;
+const _remoteSaveTimers = {};
 
-function _scheduleRemoteStatsSave(stats) {
+function _scheduleRemoteStatsSave(source = "game", stats) {
   if (!_canUseRemoteStats()) return;
-  clearTimeout(_remoteSaveTimer);
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
+  clearTimeout(_remoteSaveTimers[source]);
   const snapshot = JSON.parse(JSON.stringify(stats || {}));
   const updatedAt = new Date().toISOString();
-  try { localStorage.setItem(STATS_UPDATED_KEY, updatedAt); } catch (_) {}
-  _remoteSaveTimer = setTimeout(() => {
-    _saveRemoteStats(snapshot, updatedAt).catch((err) => console.warn("Erro ao salvar stats:", err));
+  try { localStorage.setItem(config.updatedKey, updatedAt); } catch (_) {}
+  _remoteSaveTimers[source] = setTimeout(() => {
+    _saveRemoteStats(source, snapshot, updatedAt).catch((err) => console.warn("Erro ao salvar stats:", err));
   }, 500);
 }
 
-async function _syncRemoteStats() {
+async function _syncRemoteStats(source = "game") {
   if (!_canUseRemoteStats()) return;
+  const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
   try {
-    const remote = await _fetchRemoteStats();
-    const localStats = _loadAllStats();
-    const localUpdated = localStorage.getItem(STATS_UPDATED_KEY) || "";
+    const remote = await _fetchRemoteStats(source);
+    const localStats = _loadSourceStats(source);
+    const localUpdated = localStorage.getItem(config.updatedKey) || "";
     const remoteHasStats = Object.keys(remote?.stats || {}).length > 0;
     const localHasStats = Object.keys(localStats).length > 0;
 
     if (remoteHasStats && (!localUpdated || !remote.updatedAt || remote.updatedAt >= localUpdated)) {
-      _saveAllStats(remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
+      _saveSourceStats(source, remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
       renderStatsPage();
       return;
     }
 
     if (localHasStats) {
-      await _saveRemoteStats(localStats, localUpdated || new Date().toISOString());
+      await _saveRemoteStats(source, localStats, localUpdated || new Date().toISOString());
     }
   } catch (err) {
     console.warn("Stats em modo local:", err);
@@ -128,6 +158,15 @@ function _addStats(target, id, source = {}) {
   target[id].ab += source.ab || 0;
   target[id].bb += source.bb || 0;
   target[id].k  += source.k  || 0;
+}
+
+function _normalizeStat(source = {}) {
+  return {
+    h: Math.max(0, Number(source.h || source.hits || 0) || 0),
+    ab: Math.max(0, Number(source.ab || 0) || 0),
+    bb: Math.max(0, Number(source.bb || 0) || 0),
+    k: Math.max(0, Number(source.k || 0) || 0),
+  };
 }
 
 function _hasStats(stat = {}) {
@@ -194,23 +233,18 @@ function _mapLiveBpStatsToPlayers(players) {
   const mapped = {};
   players.forEach((player) => {
     const stat = _liveBpByName[_nameKey(player.name)];
-    if (stat) mapped[player.id] = { ...stat };
+    if (stat) mapped[player.id] = _normalizeStat(stat);
   });
   return mapped;
 }
 
-function _withLiveBpOnlyPlayers(players) {
-  if (!_statsSources.liveBp && _statsSources.game) return players;
-  const seenNames = new Set(players.map((player) => _nameKey(player.name)));
-  const extras = Object.entries(_liveBpByName)
-    .filter(([key, stat]) => !seenNames.has(key) && _hasStats(stat))
-    .map(([key, stat]) => ({
-      id: `livebp-${key}`,
-      name: stat.name || key.replace(/-/g, " "),
-      number: "",
-      photo: "",
-    }));
-  return [...players, ...extras];
+function _buildLiveBpStats(players) {
+  const stats = _mapLiveBpStatsToPlayers(players);
+  const saved = _loadSourceStats("liveBp");
+  Object.entries(saved).forEach(([id, stat]) => {
+    stats[id] = _normalizeStat(stat);
+  });
+  return stats;
 }
 
 /* ─── Math ─────────────────────────────────────────── */
@@ -312,13 +346,20 @@ function renderStatsPage() {
 
   clearTimeout(_resortTimer);
 
-  let players = _withLiveBpOnlyPlayers(_buildStatPlayers());
+  let players = _buildStatPlayers();
   const useAllSources = !_statsSources.game && !_statsSources.liveBp;
   const useGameStats = _statsSources.game || useAllSources;
   const useLiveBpStats = _statsSources.liveBp || useAllSources;
   const gameStats = useGameStats ? _loadAllStats() : {};
-  const liveBpStats = useLiveBpStats ? _mapLiveBpStatsToPlayers(players) : {};
+  const liveBpStats = useLiveBpStats ? _buildLiveBpStats(players) : {};
   const stats = _combineStats(gameStats, liveBpStats);
+  const editSource =
+    _statsSources.game && !_statsSources.liveBp ? "game" :
+    _statsSources.liveBp && !_statsSources.game ? "liveBp" :
+    "";
+  const canEdit =
+    Boolean(editSource) &&
+    !(typeof isSpectator === "function" && isSpectator());
 
   const term = _statsSearch.trim().toLowerCase();
   if (term) {
@@ -327,7 +368,7 @@ function renderStatsPage() {
     );
   }
 
-  players = players.filter((p) => _hasStats(stats[p.id]));
+  if (!canEdit) players = players.filter((p) => _hasStats(stats[p.id]));
 
   players = _sortPlayers(players, stats);
 
@@ -342,11 +383,6 @@ function renderStatsPage() {
   });
 
   tbody.innerHTML = "";
-
-  const canEdit =
-    _statsSources.game &&
-    !_statsSources.liveBp &&
-    !(typeof isSpectator === "function" && isSpectator());
 
   players.forEach((player, idx) => {
     const s  = stats[player.id] || _emptyStat();
@@ -402,9 +438,10 @@ function renderStatsPage() {
       clearBtn.textContent = "×";
       clearBtn.addEventListener("click", (e) => {
         e.stopPropagation();
-        const all = _loadAllStats();
-        delete all[id];
-        _saveAllStats(all);
+        const all = _loadSourceStats(editSource);
+        if (editSource === "liveBp") all[id] = _emptyStat();
+        else delete all[id];
+        _saveSourceStats(editSource, all);
         renderStatsPage();
       });
       tdPlayer.append(clearBtn);
@@ -457,8 +494,8 @@ function renderStatsPage() {
       const val   = Math.max(0, parseInt(e.target.value, 10) || 0);
       e.target.value = val;
 
-      const all = _loadAllStats();
-      if (!all[id]) all[id] = { h: 0, ab: 0, bb: 0, k: 0 };
+      const all = _loadSourceStats(editSource);
+      if (!all[id]) all[id] = _normalizeStat(s);
       all[id][field] = val;
 
       /* H can't exceed AB */
@@ -472,7 +509,7 @@ function renderStatsPage() {
         hInput.title = "";
         all[id].h  = currentH;
         all[id].ab = currentAb;
-        _saveAllStats(all);
+        _saveSourceStats(editSource, all);
       }
 
       /* Update AVG in place */
@@ -564,6 +601,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   _loadCachedLiveBpStats();
   renderStatsPage();
-  _syncRemoteStats();
+  _syncRemoteStats("game");
+  _syncRemoteStats("liveBp");
   _fetchLiveBpStats();
 });
