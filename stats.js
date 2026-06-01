@@ -443,8 +443,9 @@ function _sortPlayers(players, stats) {
       if (aa === null) return 1;
       if (ba === null) return -1;
       if (qualifiedA !== qualifiedB) return qualifiedB ? 1 : -1;
-      if (appearancesB !== appearancesA) return appearancesB - appearancesA;
       if (Math.abs(ba - aa) > 1e-9) return ba - aa;
+      if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
+      if (appearancesB !== appearancesA) return appearancesB - appearancesA;
       if (officialBa !== officialAa) return officialBa - officialAa;
       return (sb.h || 0) - (sa.h || 0);
     }
