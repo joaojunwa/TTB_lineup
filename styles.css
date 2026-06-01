@@ -3036,6 +3036,7 @@ details[open] .historico-summary::before {
 .gd-badge-bb  { background: #1e3a5f; color: #60a5fa; }
 .gd-badge-out { background: #292524; color: #a8a29e; }
 .gd-badge-hr  { background: #431407; color: #fb923c; }
+.gd-badge-hbp { background: #312e81; color: #a5b4fc; }
 
 .gd-play-text {
   color: #cbd5e1;
@@ -3194,6 +3195,7 @@ details[open] .historico-summary::before {
 .gd-btn-strike { background: rgba(212,58,34,0.2);  color: #f87171; border-color: rgba(212,58,34,0.4); }
 .gd-btn-hit    { background: rgba(246,195,71,0.15); color: var(--accent); border-color: rgba(246,195,71,0.35); }
 .gd-btn-hr     { background: rgba(251,146,60,0.18); color: #fb923c; border-color: rgba(251,146,60,0.38); }
+.gd-btn-hbp    { background: rgba(99,102,241,0.18); color: #a5b4fc; border-color: rgba(99,102,241,0.38); }
 .gd-btn-out    { background: rgba(255,255,255,0.05); color: #9ca3af; border-color: rgba(255,255,255,0.12); }
 .gd-btn-next   { background: var(--navy); color: #f0ead8; border: 1px solid rgba(255,255,255,0.14); flex: 1 0 100%; }
 .gd-btn-reset  { background: transparent; color: var(--text-muted); border: 1px solid rgba(255,255,255,0.1); font-size: 0.75rem; }

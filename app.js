@@ -145,10 +145,10 @@ function saveRemotePlayerStats(stats, updatedAt) {
 }
 
 function recordSitePlayerStat(playerId, field, amount = 1) {
-  if (!playerId || !["ab", "h", "bb", "k", "hr"].includes(field)) return;
+  if (!playerId || !["ab", "h", "bb", "hbp", "k", "hr"].includes(field)) return;
   try {
     const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
-    if (!stats[playerId]) stats[playerId] = { h: 0, ab: 0, bb: 0, k: 0, hr: 0 };
+    if (!stats[playerId]) stats[playerId] = { h: 0, ab: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
     stats[playerId][field] = (stats[playerId][field] || 0) + amount;
     const updatedAt = new Date().toISOString();
     localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify(stats));
@@ -192,7 +192,7 @@ function loadStatsMap(key) {
 }
 
 function hasPlayerStatData(stat = {}) {
-  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.k || 0) > 0 || (stat.hr || 0) > 0;
+  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.hbp || 0) > 0 || (stat.k || 0) > 0 || (stat.hr || 0) > 0;
 }
 
 function hasAnyPlayerStats(stats = {}) {
@@ -204,16 +204,18 @@ function normalizePlayerStat(stat = {}) {
     h: Math.max(0, Number(stat.h || stat.hits || 0) || 0),
     ab: Math.max(0, Number(stat.ab || 0) || 0),
     bb: Math.max(0, Number(stat.bb || 0) || 0),
+    hbp: Math.max(0, Number(stat.hbp || stat.hitByPitch || 0) || 0),
     k: Math.max(0, Number(stat.k || 0) || 0),
     hr: Math.max(0, Number(stat.hr || stat.homeRuns || 0) || 0),
   };
 }
 
 function addPlayerStats(target, id, stat = {}) {
-  if (!target[id]) target[id] = { h: 0, ab: 0, bb: 0, k: 0, hr: 0 };
+  if (!target[id]) target[id] = { h: 0, ab: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
   target[id].h += stat.h || stat.hits || 0;
   target[id].ab += stat.ab || 0;
   target[id].bb += stat.bb || 0;
+  target[id].hbp += stat.hbp || stat.hitByPitch || 0;
   target[id].k += stat.k || 0;
   target[id].hr += stat.hr || stat.homeRuns || 0;
 }
@@ -233,7 +235,7 @@ function containsPlayerStats(container = {}, incoming = {}) {
   return Object.entries(incoming || {}).every(([id, stat]) => {
     const current = normalizePlayerStat(container[id] || {});
     const needed = normalizePlayerStat(stat);
-    return current.h >= needed.h && current.ab >= needed.ab && current.bb >= needed.bb && current.k >= needed.k && current.hr >= needed.hr;
+    return current.h >= needed.h && current.ab >= needed.ab && current.bb >= needed.bb && current.hbp >= needed.hbp && current.k >= needed.k && current.hr >= needed.hr;
   });
 }
 
@@ -2071,7 +2073,7 @@ function getOpponentStats(index) {
     gameState.playerStats[getOpponentStatKey(index)] ||
     gameState.playerStats[`away_${index}`] ||
     gameState.playerStats[`home_${index}`] ||
-    { ab: 0, h: 0, bb: 0, k: 0, hr: 0 }
+    { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 }
   );
 }
 
@@ -2175,7 +2177,7 @@ function currentScoreSnapshot() {
 function archiveCurrentMatch() {
   const hasScore = ["#awayRuns", "#homeRuns", "#awayHits", "#homeHits", "#awayErrors", "#homeErrors"]
     .some((sel) => getCellNumber(document.querySelector(sel)) > 0);
-  const hasStats = Object.values(gameState.playerStats || {}).some((s) => (s.ab || 0) > 0 || (s.h || 0) > 0 || (s.bb || 0) > 0 || (s.k || 0) > 0 || (s.hr || 0) > 0);
+  const hasStats = Object.values(gameState.playerStats || {}).some((s) => (s.ab || 0) > 0 || (s.h || 0) > 0 || (s.bb || 0) > 0 || (s.hbp || 0) > 0 || (s.k || 0) > 0 || (s.hr || 0) > 0);
   const hasPlays = (gameState.plays || []).length > 0;
   if (!hasScore && !hasStats && !hasPlays) return null;
 
@@ -2238,7 +2240,7 @@ function getStatAvgText(stat = {}) {
 }
 
 function getOfficialAtBats(stat = {}) {
-  return Math.max(0, (Number(stat?.ab) || 0) - (Number(stat?.bb) || 0));
+  return Math.max(0, (Number(stat?.ab) || 0) - (Number(stat?.bb) || 0) - (Number(stat?.hbp) || 0));
 }
 
 function formatHistoryAvg(stat = {}) {
@@ -2249,6 +2251,7 @@ function addStatTotals(totals, stat = {}) {
   totals.ab += stat.ab || 0;
   totals.h  += stat.h  || 0;
   totals.bb += stat.bb || 0;
+  totals.hbp += stat.hbp || 0;
   totals.k  += stat.k  || 0;
   totals.hr += stat.hr || 0;
   return totals;
@@ -2261,7 +2264,7 @@ function getOurStatusRows() {
     order: index + 1,
     name: player.name,
     sub: [getAssignedPosition(player.id), player.number ? `#${player.number}` : ""].filter(Boolean).join(" "),
-    stat: gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0, hr: 0 },
+    stat: gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 },
     current: index === current,
   }));
 }
@@ -2279,7 +2282,7 @@ function getOpponentStatusRows() {
 }
 
 function renderBoxStatsTable(title, rows) {
-  const totals = rows.reduce((sum, row) => addStatTotals(sum, row.stat), { ab: 0, h: 0, bb: 0, k: 0, hr: 0 });
+  const totals = rows.reduce((sum, row) => addStatTotals(sum, row.stat), { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 });
   const body = rows.map((row) => {
     const s = row.stat || {};
     return `<tr class="${row.current ? "gd-stat-current" : ""}">
@@ -2289,6 +2292,7 @@ function renderBoxStatsTable(title, rows) {
       <td>${s.h || 0}</td>
       <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
+      <td>${s.hbp || 0}</td>
       <td>${s.k || 0}</td>
       <td class="gd-stat-avg">${getStatAvgText(s)}</td>
     </tr>`;
@@ -2304,18 +2308,19 @@ function renderBoxStatsTable(title, rows) {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">${escapeHtml(title)}</th>
-          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th>
+          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>HBP</th><th>K</th><th>AVG</th>
         </tr>
       </thead>
       <tbody>
-        ${body || `<tr><td colspan="8">Sem jogadores.</td></tr>`}
+        ${body || `<tr><td colspan="9">Sem jogadores.</td></tr>`}
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
-          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td><td>${totals.bb}</td><td>${totals.k}</td>
+          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td><td>${totals.bb}</td><td>${totals.hbp}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${getStatAvgText(totals)}</td>
         </tr>
       </tbody>
@@ -2323,7 +2328,7 @@ function renderBoxStatsTable(title, rows) {
 }
 
 function getHistorySummary(history = loadMatchHistory()) {
-  const summary = { wins: 0, losses: 0, ties: 0, runsFor: 0, runsAgainst: 0, ab: 0, h: 0, bb: 0 };
+  const summary = { wins: 0, losses: 0, ties: 0, runsFor: 0, runsAgainst: 0, ab: 0, h: 0, bb: 0, hbp: 0 };
   history.forEach((entry) => {
     const result = getMatchResult(entry);
     if (result.className === "is-win") summary.wins += 1;
@@ -2336,6 +2341,7 @@ function getHistorySummary(history = loadMatchHistory()) {
       summary.ab += stat.ab || 0;
       summary.h += stat.h || 0;
       summary.bb += stat.bb || 0;
+      summary.hbp += stat.hbp || 0;
     });
   });
   return summary;
@@ -2375,6 +2381,7 @@ function historyStatRow(label, stat = {}, extra = "") {
       <td>${input("h")}</td>
       <td>${input("hr")}</td>
       <td>${input("bb")}</td>
+      <td>${input("hbp")}</td>
       <td>${input("k")}</td>
       <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
     </tr>`;
@@ -2385,6 +2392,7 @@ function historyStatRow(label, stat = {}, extra = "") {
     <td>${stat.h || 0}</td>
     <td>${stat.hr || 0}</td>
     <td>${stat.bb || 0}</td>
+    <td>${stat.hbp || 0}</td>
     <td>${stat.k || 0}</td>
     <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
   </tr>`;
@@ -2394,8 +2402,8 @@ function renderHistoryStatsTable(title, rows) {
   return `<section class="gd-history-team">
     <h4>${escapeHtml(title)}</h4>
     <table class="gd-history-table">
-      <thead><tr><th>Jogador</th><th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="7">Sem stats.</td></tr>`}</tbody>
+      <thead><tr><th>Jogador</th><th>AB</th><th>H</th><th>HR</th><th>BB</th><th>HBP</th><th>K</th><th>AVG</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="8">Sem stats.</td></tr>`}</tbody>
     </table>
   </section>`;
 }
@@ -2484,7 +2492,7 @@ function bindHistoryEditor(root, matchId) {
       const value = Math.max(0, parseInt(event.currentTarget.value, 10) || 0);
       updateMatchHistoryEntry(matchId, (entry) => {
         if (!entry.playerStats) entry.playerStats = {};
-        if (!entry.playerStats[key]) entry.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
+        if (!entry.playerStats[key]) entry.playerStats[key] = { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
         entry.playerStats[key][field] = value;
       });
     });
@@ -2643,13 +2651,13 @@ function renderStatusBattingOrder() {
   }
 
   const current = getCurrentTeamBatterIndex(ttbSide) % batters.length;
-  const totals = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
+  const totals = { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
 
   const rows = batters.map((player, i) => {
     const isCurrent = i === current;
     const pos = getAssignedPosition(player.id) || "—";
-    const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
-    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
+    const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
+    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.hbp += s.hbp || 0; totals.k += s.k || 0;
     const avg = getStatAvgText(s);
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${i + 1}</td>
@@ -2658,6 +2666,7 @@ function renderStatusBattingOrder() {
       <td>${s.h  || 0}</td>
       <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
+      <td>${s.hbp || 0}</td>
       <td>${s.k  || 0}</td>
       <td class="gd-stat-avg">${avg}</td>
     </tr>`;
@@ -2676,11 +2685,12 @@ function renderStatusBattingOrder() {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Nosso Time</th>
-          <th class="gd-stat-metric-head">AB</th><th class="gd-stat-metric-head">H</th><th class="gd-stat-metric-head">HR</th><th class="gd-stat-metric-head">BB</th><th class="gd-stat-metric-head">K</th><th class="gd-stat-metric-head">AVG</th>
+          <th class="gd-stat-metric-head">AB</th><th class="gd-stat-metric-head">H</th><th class="gd-stat-metric-head">HR</th><th class="gd-stat-metric-head">BB</th><th class="gd-stat-metric-head">HBP</th><th class="gd-stat-metric-head">K</th><th class="gd-stat-metric-head">AVG</th>
         </tr>
       </thead>
       <tbody>
@@ -2688,7 +2698,7 @@ function renderStatusBattingOrder() {
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
           <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td>
-          <td>${totals.bb}</td><td>${totals.k}</td>
+          <td>${totals.bb}</td><td>${totals.hbp}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${totalAvg}</td>
         </tr>
       </tbody>
@@ -2701,12 +2711,12 @@ function renderOpponentLineup() {
   if (!container) return;
   const side = opponentSide();
   const current = getCurrentTeamBatterIndex(side) % opponentLineup.length;
-  const totals = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
+  const totals = { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
 
   const rows = opponentLineup.map((row, index) => {
     const isCurrent = index === current;
     const s = getOpponentStats(index);
-    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
+    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.hbp += s.hbp || 0; totals.k += s.k || 0;
     const avg = getStatAvgText(s);
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${row.order}</td>
@@ -2720,6 +2730,7 @@ function renderOpponentLineup() {
       <td>${s.h  || 0}</td>
       <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
+      <td>${s.hbp || 0}</td>
       <td>${s.k  || 0}</td>
       <td class="gd-stat-avg">${avg}</td>
     </tr>`;
@@ -2738,11 +2749,12 @@ function renderOpponentLineup() {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Adversário</th>
-          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th>
+          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>HBP</th><th>K</th><th>AVG</th>
         </tr>
       </thead>
       <tbody>
@@ -2750,7 +2762,7 @@ function renderOpponentLineup() {
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
           <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td>
-          <td>${totals.bb}</td><td>${totals.k}</td>
+          <td>${totals.bb}</td><td>${totals.hbp}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${totalAvg}</td>
         </tr>
       </tbody>
@@ -2953,7 +2965,7 @@ function recordBatterStat(field, amount = 1) {
   }
 
   if (!gameState.playerStats[key]) {
-    gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
+    gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
   }
   gameState.playerStats[key][field] = (gameState.playerStats[key][field] || 0) + amount;
 
@@ -2967,6 +2979,14 @@ function completeWalk() {
   recordBatterStat("ab");
   recordBatterStat("bb");
   logPlay(runs ? "Walk (BB) - entrou 1 corrida" : "Walk (BB)");
+  nextBatter();
+}
+
+function completeHitByPitch() {
+  const runs = advanceBatterByWalk();
+  recordBatterStat("ab");
+  recordBatterStat("hbp");
+  logPlay(runs ? "HBP - entrou 1 corrida" : "HBP");
   nextBatter();
 }
 
@@ -3075,6 +3095,7 @@ function getPlayBadge(text) {
   const t = text.toLowerCase();
   if (t.includes("strikeout"))               return ["K",    "k"];
   if (t.includes("walk") || t.includes("(bb)")) return ["BB", "bb"];
+  if (t.includes("hbp") || t.includes("dead ball")) return ["HBP", "hbp"];
   if (t.includes("home run"))                return ["HR",   "hr"];
   if (t.includes(" hit") || text === "Hit")  return ["Hit",  "hit"];
   if (t.includes("out"))                     return ["Out",  "out"];
@@ -3171,6 +3192,7 @@ if (PAGE === "status") {
   document.querySelector("#btnOut")?.addEventListener("click", addOut);
   document.querySelector("#btnHit")?.addEventListener("click", completeHit);
   document.querySelector("#btnHomeRun")?.addEventListener("click", completeHomeRun);
+  document.querySelector("#btnHbp")?.addEventListener("click", completeHitByPitch);
   document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
   document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
   document.querySelector("#btnSwapTeams")?.addEventListener("click", swapTeamSides);
