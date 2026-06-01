@@ -2162,14 +2162,31 @@ function clearMatchHistory() {
 
 function getManualHistoryLineup() {
   const activeLineup = getStatusBatterList();
-  const source = activeLineup.length > 0 ? activeLineup : roster;
+  const source = activeLineup.length >= 9 ? activeLineup : roster.slice(0, 9);
   return source.map((player, index) => ({
     id: player.id,
-    order: battingOrders[player.id] || player.battingOrder || index + 1,
+    order: index + 1,
     name: player.name,
     number: player.number || "",
     position: player.position || "",
   }));
+}
+
+function addManualHistoryPlayer(matchId, position = "") {
+  updateMatchHistoryEntry(matchId, (entry) => {
+    if (!Array.isArray(entry.ourLineup)) entry.ourLineup = [];
+    const order = entry.ourLineup.length + 1;
+    const id = `manual-player-${Date.now()}-${order}`;
+    entry.ourLineup.push({
+      id,
+      order,
+      name: "",
+      number: "",
+      position,
+    });
+    if (!entry.playerStats) entry.playerStats = {};
+    entry.playerStats[id] = { ab: 0, h: 0, bb: 0, hbp: 0, k: 0, hr: 0 };
+  });
 }
 
 function createManualHistoryMatch() {
@@ -2492,6 +2509,12 @@ function renderMatchHistoryDetail(entry, targetSelector = "#matchHistoryDetail")
   const statsGrid = entry.manualOnlyOurStats
     ? renderHistoryStatsTable(ttbName, ourRows)
     : `${renderHistoryStatsTable(ttbName, ourRows)}${renderHistoryStatsTable(oppName, oppRows)}`;
+  const manualLineupActions = entry.manualOnlyOurStats
+    ? `<div class="gd-history-lineup-actions">
+        <button type="button" data-history-add-player>Adicionar jogador</button>
+        <button type="button" data-history-add-dh>Adicionar DH</button>
+      </div>`
+    : "";
 
   detail.innerHTML = `
     <div class="gd-history-editor-actions">
@@ -2508,6 +2531,7 @@ function renderMatchHistoryDetail(entry, targetSelector = "#matchHistoryDetail")
       <small>H <input type="number" min="0" value="${score.awayHits ?? 0}" data-history-score-field="awayHits" /> - <input type="number" min="0" value="${score.homeHits ?? 0}" data-history-score-field="homeHits" /></small>
       <small>E <input type="number" min="0" value="${score.awayErrors ?? 0}" data-history-score-field="awayErrors" /> - <input type="number" min="0" value="${score.homeErrors ?? 0}" data-history-score-field="homeErrors" /></small>
     </div>
+    ${manualLineupActions}
     <div class="gd-history-stats-grid${entry.manualOnlyOurStats ? " is-single" : ""}">
       ${statsGrid}
     </div>
@@ -2557,6 +2581,8 @@ function bindHistoryEditor(root, matchId) {
 
   root.querySelector("[data-history-delete]")?.addEventListener("click", () => deleteMatchHistoryEntry(matchId));
   root.querySelector("[data-history-clear]")?.addEventListener("click", clearMatchHistory);
+  root.querySelector("[data-history-add-player]")?.addEventListener("click", () => addManualHistoryPlayer(matchId));
+  root.querySelector("[data-history-add-dh]")?.addEventListener("click", () => addManualHistoryPlayer(matchId, "DH"));
 }
 
 function renderMatchHistory() {
@@ -3019,9 +3045,6 @@ function recordBatterStat(field, amount = 1) {
   }
   gameState.playerStats[key][field] = (gameState.playerStats[key][field] || 0) + amount;
 
-  if (isOurTeamSide(team)) {
-    recordSitePlayerStat(key, field, amount);
-  }
 }
 
 function completeWalk() {
@@ -3201,7 +3224,6 @@ if (PAGE === "status") {
   loadPlayerTags();
   loadLineupState();
   loadOpponentLineup();
-  syncSitePlayerStatsFromRemote();
   setStatusView(new URLSearchParams(window.location.search).get("view") === "history" ? "history" : "status");
 
   function refreshStatusLineupFromStorage() {
