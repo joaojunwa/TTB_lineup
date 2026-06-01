@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stats — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=15" />
+    <link rel="stylesheet" href="styles.css?v=16" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -61,29 +61,52 @@
           </div>
         </div>
 
-        <div class="stats-table-wrap">
-          <table class="stats-table" id="statsTable">
-            <thead>
-              <tr>
-                <th class="stats-th-rank">#</th>
-                <th class="stats-th-player">Jogador</th>
-                <th class="stats-th-num" title="Aparições no bastão — o AVG desconta BB e HBP automaticamente">AB</th>
-                <th class="stats-th-num" title="Hits — acertos">H</th>
-                <th class="stats-th-num" title="Home Runs">HR</th>
-                <th class="stats-th-num" title="Bases on Balls — caminhadas (walk)">BB</th>
-                <th class="stats-th-num" title="Hit by Pitch — dead ball">HBP</th>
-                <th class="stats-th-num" title="Strikeouts — ponchados">K</th>
-                <th class="stats-th-avg" title="Batting Average — média de rebatidas (H ÷ AB)">AVG</th>
-              </tr>
-            </thead>
-            <tbody id="statsBody"></tbody>
-          </table>
+        <div class="stats-content">
+          <div class="stats-table-wrap">
+            <table class="stats-table" id="statsTable">
+              <thead>
+                <tr>
+                  <th class="stats-th-rank">#</th>
+                  <th class="stats-th-player">Jogador</th>
+                  <th class="stats-th-num" title="Aparições no bastão — o AVG desconta BB e HBP automaticamente">AB</th>
+                  <th class="stats-th-num" title="Hits — acertos">H</th>
+                  <th class="stats-th-num" title="Home Runs">HR</th>
+                  <th class="stats-th-num" title="Bases on Balls — caminhadas (walk)">BB</th>
+                  <th class="stats-th-num" title="Hit by Pitch — dead ball">HBP</th>
+                  <th class="stats-th-num" title="Strikeouts — ponchados">K</th>
+                  <th class="stats-th-avg" title="Batting Average — média de rebatidas (H ÷ AB oficial)">AVG</th>
+                </tr>
+              </thead>
+              <tbody id="statsBody"></tbody>
+            </table>
+          </div>
+
+          <aside class="stats-info-panel" aria-label="Glossário de estatísticas">
+            <table class="stats-info-table">
+              <thead>
+                <tr>
+                  <th>Stat</th>
+                  <th>Descrição</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td>AB</td><td>Aparições totais digitadas.</td></tr>
+                <tr><td>H</td><td>Rebatidas válidas.</td></tr>
+                <tr><td>HR</td><td>Home runs.</td></tr>
+                <tr><td>BB</td><td>Walks; não entram no AB oficial.</td></tr>
+                <tr><td>HBP</td><td>Dead ball; não entra no AB oficial.</td></tr>
+                <tr><td>K</td><td>Strikeouts.</td></tr>
+                <tr><td>AVG</td><td>H ÷ (AB - BB - HBP).</td></tr>
+                <tr><td>Mín.</td><td>4 aparições em AB para liderar por AVG.</td></tr>
+              </tbody>
+            </table>
+          </aside>
         </div>
       </section>
     </main>
 
     <script src="lineup-data.js?v=5"></script>
     <script src="app.js?v=16"></script>
-    <script src="stats.js?v=13"></script>
+    <script src="stats.js?v=14"></script>
   </body>
 </html>
