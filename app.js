@@ -2160,6 +2160,48 @@ function clearMatchHistory() {
   renderHistoryPage();
 }
 
+function getManualHistoryLineup() {
+  const activeLineup = getStatusBatterList();
+  const source = activeLineup.length > 0 ? activeLineup : roster;
+  return source.map((player, index) => ({
+    id: player.id,
+    order: battingOrders[player.id] || player.battingOrder || index + 1,
+    name: player.name,
+    number: player.number || "",
+    position: player.position || "",
+  }));
+}
+
+function createManualHistoryMatch() {
+  const entry = {
+    id: `manual-match-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    ttbSide,
+    manualOnlyOurStats: true,
+    score: {
+      awayName: ttbSide === "away" ? "TTB" : "Visitante",
+      homeName: ttbSide === "home" ? "TTB" : "Visitante",
+      awayRuns: 0,
+      homeRuns: 0,
+      awayHits: 0,
+      homeHits: 0,
+      awayErrors: 0,
+      homeErrors: 0,
+    },
+    ourLineup: getManualHistoryLineup(),
+    opponentLineup: [],
+    playerStats: {},
+    plays: [],
+  };
+  const history = loadMatchHistory();
+  history.unshift(entry);
+  activeMatchHistoryId = entry.id;
+  saveMatchHistoryAndSync(history);
+  renderMatchHistory();
+  renderHistoryPage();
+  return entry;
+}
+
 function currentScoreSnapshot() {
   computeRuns();
   return {
@@ -2447,6 +2489,9 @@ function renderMatchHistoryDetail(entry, targetSelector = "#matchHistoryDetail")
       number: row.number || "",
     }))
     .join("");
+  const statsGrid = entry.manualOnlyOurStats
+    ? renderHistoryStatsTable(ttbName, ourRows)
+    : `${renderHistoryStatsTable(ttbName, ourRows)}${renderHistoryStatsTable(oppName, oppRows)}`;
 
   detail.innerHTML = `
     <div class="gd-history-editor-actions">
@@ -2463,9 +2508,8 @@ function renderMatchHistoryDetail(entry, targetSelector = "#matchHistoryDetail")
       <small>H <input type="number" min="0" value="${score.awayHits ?? 0}" data-history-score-field="awayHits" /> - <input type="number" min="0" value="${score.homeHits ?? 0}" data-history-score-field="homeHits" /></small>
       <small>E <input type="number" min="0" value="${score.awayErrors ?? 0}" data-history-score-field="awayErrors" /> - <input type="number" min="0" value="${score.homeErrors ?? 0}" data-history-score-field="homeErrors" /></small>
     </div>
-    <div class="gd-history-stats-grid">
-      ${renderHistoryStatsTable(ttbName, ourRows)}
-      ${renderHistoryStatsTable(oppName, oppRows)}
+    <div class="gd-history-stats-grid${entry.manualOnlyOurStats ? " is-single" : ""}">
+      ${statsGrid}
     </div>
   `;
   bindHistoryEditor(detail, entry.id);
@@ -2839,15 +2883,20 @@ function renderHistoryMatchTabs() {
   if (!list || !detail) return;
   const history = loadMatchHistory();
   if (history.length === 0) {
-    list.innerHTML = `<p class="gd-match-history-empty">Nenhuma partida arquivada.</p>`;
-    detail.innerHTML = `<p class="gd-match-history-empty">Arquive uma partida em Novo Jogo para ela aparecer aqui.</p>`;
+    list.innerHTML = `
+      <button class="gd-history-new-match" type="button" data-history-new-match>Nova partida</button>
+      <p class="gd-match-history-empty">Nenhuma partida arquivada.</p>
+    `;
+    list.querySelector("[data-history-new-match]")?.addEventListener("click", createManualHistoryMatch);
+    detail.innerHTML = `<p class="gd-match-history-empty">Crie uma partida para registrar placar e stats dos nossos jogadores.</p>`;
     if (scoreEl) scoreEl.innerHTML = "";
     return;
   }
   if (!activeMatchHistoryId || !history.some((entry) => entry.id === activeMatchHistoryId)) {
     activeMatchHistoryId = history[0]?.id || "";
   }
-  list.innerHTML = history.slice(0, 12).map((entry) => {
+  const newMatchButton = `<button class="gd-history-new-match" type="button" data-history-new-match>Nova partida</button>`;
+  list.innerHTML = newMatchButton + history.slice(0, 12).map((entry) => {
     const score = entry.score || {};
     const result = getMatchResult(entry);
     const ttbName = entry.ttbSide === "away" ? score.awayName || "TTB" : score.homeName || "TTB";
@@ -2859,6 +2908,7 @@ function renderHistoryMatchTabs() {
       <small>H ${score.awayHits ?? 0}-${score.homeHits ?? 0} · E ${score.awayErrors ?? 0}-${score.homeErrors ?? 0}</small>
     </button>`;
   }).join("");
+  list.querySelector("[data-history-new-match]")?.addEventListener("click", createManualHistoryMatch);
   list.querySelectorAll("[data-match-id]").forEach((button) => {
     button.addEventListener("click", () => {
       activeMatchHistoryId = button.dataset.matchId || "";

@@ -3454,6 +3454,10 @@ details[open] .historico-summary::before {
   gap: 10px;
 }
 
+.gd-history-stats-grid.is-single {
+  grid-template-columns: 1fr;
+}
+
 .gd-history-team {
   min-width: 0;
 }
@@ -3590,8 +3594,10 @@ details[open] .historico-summary::before {
   padding: 26px 0 38px;
 }
 
-.gd-history-page[hidden] {
-  display: none;
+.gd-history-page[hidden],
+#statusTab[hidden],
+#historyPage[hidden] {
+  display: none !important;
 }
 
 .gd-history-page-head {
@@ -3645,6 +3651,25 @@ details[open] .historico-summary::before {
   gap: 8px;
   border-bottom: 1px solid rgba(255,255,255,0.1);
   padding: 12px;
+}
+
+.gd-history-new-match {
+  min-height: 42px;
+  border: 1px solid rgba(246,195,71,0.45);
+  border-radius: 8px;
+  background: rgba(246,195,71,0.13);
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.gd-history-new-match:hover {
+  background: rgba(246,195,71,0.2);
 }
 
 .gd-history-match-tab {
