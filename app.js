@@ -36,6 +36,13 @@ let playerTags = {};
 const PLAYER_STATS_KEY = "ttb_player_stats_v2";
 const PLAYER_STATS_UPDATED_KEY = "ttb_player_stats_updated_at";
 const PLAYER_STATS_REMOTE_ID = "ttb_player_stats_global";
+const APP_LIVE_BP_PLAYER_STATS_KEY = "ttb_live_bp_player_stats_v1";
+const APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
+const APP_LIVE_BP_PLAYER_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
+const APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY = "ttb_stats_game_to_livebp_migration_2026_06_01";
+const APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY = "ttb_stats_game_to_livebp_remote_2026_06_01";
+const APP_STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY = "ttb_player_stats_v2_backup_before_livebp_move_2026_06_01";
+const APP_STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY = "ttb_live_bp_player_stats_v1_backup_before_livebp_move_2026_06_01";
 const ACTIVE_STATUS_GAME_ID = "ttb_jogo_ativo";
 let playerStatsSaveTimer = null;
 let activeGameLineupSaveTimer = null;
@@ -69,6 +76,46 @@ function canSaveRemotePlayerStats() {
   return typeof AUTH_SUPABASE_URL !== "undefined" && typeof AUTH_SUPABASE_KEY !== "undefined";
 }
 
+async function saveRemoteStatsById(remoteId, stats, updatedAt) {
+  if (!canSaveRemotePlayerStats()) return;
+  const res = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?on_conflict=id`, {
+    method: "POST",
+    headers: {
+      apikey: AUTH_SUPABASE_KEY,
+      Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=minimal",
+    },
+    body: JSON.stringify({
+      id: remoteId,
+      state: { stats: JSON.parse(JSON.stringify(stats || {})), updated_at: updatedAt },
+      updated_at: updatedAt,
+    }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+}
+
+async function fetchRemoteStatsById(remoteId) {
+  if (!canSaveRemotePlayerStats()) return null;
+  const res = await fetch(
+    `${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state,updated_at&id=eq.${encodeURIComponent(remoteId)}`,
+    {
+      headers: {
+        apikey: AUTH_SUPABASE_KEY,
+        Authorization: `Bearer ${AUTH_SUPABASE_KEY}`,
+      },
+    },
+  );
+  if (!res.ok) throw new Error(await res.text());
+  const rows = await res.json();
+  const row = rows[0];
+  if (!row?.state) return null;
+  return {
+    stats: row.state.stats || {},
+    updatedAt: row.updated_at || row.state.updated_at || "",
+  };
+}
+
 function saveRemotePlayerStats(stats, updatedAt) {
   if (!canSaveRemotePlayerStats()) return;
   clearTimeout(playerStatsSaveTimer);
@@ -97,10 +144,10 @@ function saveRemotePlayerStats(stats, updatedAt) {
 }
 
 function recordSitePlayerStat(playerId, field, amount = 1) {
-  if (!playerId || !["ab", "h", "bb", "k"].includes(field)) return;
+  if (!playerId || !["ab", "h", "bb", "k", "hr"].includes(field)) return;
   try {
     const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
-    if (!stats[playerId]) stats[playerId] = { h: 0, ab: 0, bb: 0, k: 0 };
+    if (!stats[playerId]) stats[playerId] = { h: 0, ab: 0, bb: 0, k: 0, hr: 0 };
     stats[playerId][field] = (stats[playerId][field] || 0) + amount;
     const updatedAt = new Date().toISOString();
     localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify(stats));
@@ -137,6 +184,144 @@ async function syncSitePlayerStatsFromRemote() {
     console.warn("Stats gerais em modo local:", err);
   }
 }
+
+function loadStatsMap(key) {
+  try { return JSON.parse(localStorage.getItem(key)) || {}; }
+  catch (_) { return {}; }
+}
+
+function hasPlayerStatData(stat = {}) {
+  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.k || 0) > 0 || (stat.hr || 0) > 0;
+}
+
+function hasAnyPlayerStats(stats = {}) {
+  return Object.values(stats || {}).some((stat) => hasPlayerStatData(stat));
+}
+
+function normalizePlayerStat(stat = {}) {
+  return {
+    h: Math.max(0, Number(stat.h || stat.hits || 0) || 0),
+    ab: Math.max(0, Number(stat.ab || 0) || 0),
+    bb: Math.max(0, Number(stat.bb || 0) || 0),
+    k: Math.max(0, Number(stat.k || 0) || 0),
+    hr: Math.max(0, Number(stat.hr || stat.homeRuns || 0) || 0),
+  };
+}
+
+function addPlayerStats(target, id, stat = {}) {
+  if (!target[id]) target[id] = { h: 0, ab: 0, bb: 0, k: 0, hr: 0 };
+  target[id].h += stat.h || stat.hits || 0;
+  target[id].ab += stat.ab || 0;
+  target[id].bb += stat.bb || 0;
+  target[id].k += stat.k || 0;
+  target[id].hr += stat.hr || stat.homeRuns || 0;
+}
+
+function mergePlayerStats(base = {}, incoming = {}) {
+  const merged = {};
+  Object.entries(base || {}).forEach(([id, stat]) => {
+    merged[id] = normalizePlayerStat(stat);
+  });
+  Object.entries(incoming || {}).forEach(([id, stat]) => {
+    addPlayerStats(merged, id, stat);
+  });
+  return merged;
+}
+
+function containsPlayerStats(container = {}, incoming = {}) {
+  return Object.entries(incoming || {}).every(([id, stat]) => {
+    const current = normalizePlayerStat(container[id] || {});
+    const needed = normalizePlayerStat(stat);
+    return current.h >= needed.h && current.ab >= needed.ab && current.bb >= needed.bb && current.k >= needed.k && current.hr >= needed.hr;
+  });
+}
+
+function backupStatsMapOnce(key, stats) {
+  try {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(stats || {}));
+  } catch (_) {}
+}
+
+function moveExistingGameStatsToLiveBpLocal() {
+  try {
+    if (localStorage.getItem(APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done") {
+      moveExistingGameStatsToLiveBpRemote()
+        .catch((err) => console.warn("Erro ao migrar stats remotos para Live BP:", err));
+      return false;
+    }
+
+    const now = new Date().toISOString();
+    const gameStats = loadStatsMap(PLAYER_STATS_KEY);
+    const liveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
+    const shouldMoveStats = hasAnyPlayerStats(gameStats);
+
+    backupStatsMapOnce(APP_STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY, gameStats);
+    backupStatsMapOnce(APP_STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY, liveBpStats);
+
+    if (shouldMoveStats) {
+      const movedLiveBpStats = containsPlayerStats(liveBpStats, gameStats)
+        ? liveBpStats
+        : mergePlayerStats(liveBpStats, gameStats);
+      localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_KEY, JSON.stringify(movedLiveBpStats));
+      localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY, now);
+    }
+
+    localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify({}));
+    localStorage.setItem(PLAYER_STATS_UPDATED_KEY, now);
+    localStorage.setItem(APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY, "done");
+
+    moveExistingGameStatsToLiveBpRemote()
+      .catch((err) => console.warn("Erro ao migrar stats remotos para Live BP:", err));
+
+    return shouldMoveStats;
+  } catch (err) {
+    console.warn("Migracao local dos stats para Live BP falhou:", err);
+    return false;
+  }
+}
+
+async function moveExistingGameStatsToLiveBpRemote() {
+  if (!canSaveRemotePlayerStats()) return;
+  if (localStorage.getItem(APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY) === "done") return;
+
+  const now = new Date().toISOString();
+  const [remoteGame, remoteLiveBp] = await Promise.all([
+    fetchRemoteStatsById(PLAYER_STATS_REMOTE_ID),
+    fetchRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID),
+  ]);
+  const remoteGameStats = remoteGame?.stats || {};
+  const remoteLiveBpStats = remoteLiveBp?.stats || {};
+
+  if (hasAnyPlayerStats(remoteGameStats)) {
+    const movedLiveBpStats = containsPlayerStats(remoteLiveBpStats, remoteGameStats)
+      ? remoteLiveBpStats
+      : mergePlayerStats(remoteLiveBpStats, remoteGameStats);
+    const currentLocalLiveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
+    const localLiveBpStats = containsPlayerStats(currentLocalLiveBpStats, remoteGameStats)
+      ? currentLocalLiveBpStats
+      : mergePlayerStats(currentLocalLiveBpStats, remoteGameStats);
+    localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_KEY, JSON.stringify(localLiveBpStats));
+    localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY, now);
+    await saveRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID, movedLiveBpStats, now);
+  } else if (!hasAnyPlayerStats(remoteLiveBpStats)) {
+    const localLiveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
+    if (hasAnyPlayerStats(localLiveBpStats)) {
+      await saveRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID, localLiveBpStats, now);
+    }
+  }
+
+  const currentGameStats = loadStatsMap(PLAYER_STATS_KEY);
+  if (hasAnyPlayerStats(currentGameStats)) {
+    await saveRemoteStatsById(PLAYER_STATS_REMOTE_ID, currentGameStats, new Date().toISOString());
+  } else {
+    await saveRemoteStatsById(PLAYER_STATS_REMOTE_ID, {}, now);
+    localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify({}));
+    localStorage.setItem(PLAYER_STATS_UPDATED_KEY, now);
+  }
+  localStorage.setItem(APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY, "done");
+}
+
+moveExistingGameStatsToLiveBpLocal();
 
 function saveLineupState() {
   try {
@@ -1885,7 +2070,7 @@ function getOpponentStats(index) {
     gameState.playerStats[getOpponentStatKey(index)] ||
     gameState.playerStats[`away_${index}`] ||
     gameState.playerStats[`home_${index}`] ||
-    { ab: 0, h: 0, bb: 0, k: 0 }
+    { ab: 0, h: 0, bb: 0, k: 0, hr: 0 }
   );
 }
 
@@ -1989,7 +2174,7 @@ function currentScoreSnapshot() {
 function archiveCurrentMatch() {
   const hasScore = ["#awayRuns", "#homeRuns", "#awayHits", "#homeHits", "#awayErrors", "#homeErrors"]
     .some((sel) => getCellNumber(document.querySelector(sel)) > 0);
-  const hasStats = Object.values(gameState.playerStats || {}).some((s) => (s.ab || 0) > 0 || (s.h || 0) > 0 || (s.bb || 0) > 0 || (s.k || 0) > 0);
+  const hasStats = Object.values(gameState.playerStats || {}).some((s) => (s.ab || 0) > 0 || (s.h || 0) > 0 || (s.bb || 0) > 0 || (s.k || 0) > 0 || (s.hr || 0) > 0);
   const hasPlays = (gameState.plays || []).length > 0;
   if (!hasScore && !hasStats && !hasPlays) return null;
 
@@ -2059,6 +2244,7 @@ function addStatTotals(totals, stat = {}) {
   totals.h  += stat.h  || 0;
   totals.bb += stat.bb || 0;
   totals.k  += stat.k  || 0;
+  totals.hr += stat.hr || 0;
   return totals;
 }
 
@@ -2069,7 +2255,7 @@ function getOurStatusRows() {
     order: index + 1,
     name: player.name,
     sub: [getAssignedPosition(player.id), player.number ? `#${player.number}` : ""].filter(Boolean).join(" "),
-    stat: gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0 },
+    stat: gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0, hr: 0 },
     current: index === current,
   }));
 }
@@ -2087,7 +2273,7 @@ function getOpponentStatusRows() {
 }
 
 function renderBoxStatsTable(title, rows) {
-  const totals = rows.reduce((sum, row) => addStatTotals(sum, row.stat), { ab: 0, h: 0, bb: 0, k: 0 });
+  const totals = rows.reduce((sum, row) => addStatTotals(sum, row.stat), { ab: 0, h: 0, bb: 0, k: 0, hr: 0 });
   const body = rows.map((row) => {
     const s = row.stat || {};
     return `<tr class="${row.current ? "gd-stat-current" : ""}">
@@ -2095,6 +2281,7 @@ function renderBoxStatsTable(title, rows) {
       <td class="gd-stat-name">${escapeHtml(row.name)}${row.sub ? `<span class="gd-stat-pos"> ${escapeHtml(row.sub)}</span>` : ""}</td>
       <td>${s.ab || 0}</td>
       <td>${s.h || 0}</td>
+      <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
       <td>${s.k || 0}</td>
       <td class="gd-stat-avg">${getStatAvgText(s)}</td>
@@ -2110,18 +2297,19 @@ function renderBoxStatsTable(title, rows) {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">${escapeHtml(title)}</th>
-          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th>
         </tr>
       </thead>
       <tbody>
-        ${body || `<tr><td colspan="7">Sem jogadores.</td></tr>`}
+        ${body || `<tr><td colspan="8">Sem jogadores.</td></tr>`}
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
-          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.bb}</td><td>${totals.k}</td>
+          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td><td>${totals.bb}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${getStatAvgText(totals)}</td>
         </tr>
       </tbody>
@@ -2178,6 +2366,7 @@ function historyStatRow(label, stat = {}, extra = "") {
       ${nameCell}
       <td>${input("ab")}</td>
       <td>${input("h")}</td>
+      <td>${input("hr")}</td>
       <td>${input("bb")}</td>
       <td>${input("k")}</td>
       <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
@@ -2187,6 +2376,7 @@ function historyStatRow(label, stat = {}, extra = "") {
     <td class="gd-history-player">${escapeHtml(label)}${detail ? `<span>${escapeHtml(detail)}</span>` : ""}</td>
     <td>${stat.ab || 0}</td>
     <td>${stat.h || 0}</td>
+    <td>${stat.hr || 0}</td>
     <td>${stat.bb || 0}</td>
     <td>${stat.k || 0}</td>
     <td class="gd-stat-avg">${formatHistoryAvg(stat)}</td>
@@ -2197,8 +2387,8 @@ function renderHistoryStatsTable(title, rows) {
   return `<section class="gd-history-team">
     <h4>${escapeHtml(title)}</h4>
     <table class="gd-history-table">
-      <thead><tr><th>Jogador</th><th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th></tr></thead>
-      <tbody>${rows || `<tr><td colspan="6">Sem stats.</td></tr>`}</tbody>
+      <thead><tr><th>Jogador</th><th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="7">Sem stats.</td></tr>`}</tbody>
     </table>
   </section>`;
 }
@@ -2287,7 +2477,7 @@ function bindHistoryEditor(root, matchId) {
       const value = Math.max(0, parseInt(event.currentTarget.value, 10) || 0);
       updateMatchHistoryEntry(matchId, (entry) => {
         if (!entry.playerStats) entry.playerStats = {};
-        if (!entry.playerStats[key]) entry.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0 };
+        if (!entry.playerStats[key]) entry.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
         entry.playerStats[key][field] = value;
       });
     });
@@ -2446,19 +2636,20 @@ function renderStatusBattingOrder() {
   }
 
   const current = getCurrentTeamBatterIndex(ttbSide) % batters.length;
-  const totals = { ab: 0, h: 0, bb: 0, k: 0 };
+  const totals = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
 
   const rows = batters.map((player, i) => {
     const isCurrent = i === current;
     const pos = getAssignedPosition(player.id) || "—";
-    const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0 };
-    totals.ab += s.ab; totals.h += s.h; totals.bb += s.bb; totals.k += s.k;
+    const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
+    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
     const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${i + 1}</td>
       <td class="gd-stat-name">${escapeHtml(player.name)}<span class="gd-stat-pos"> ${escapeHtml(pos)}</span></td>
       <td>${s.ab || 0}</td>
       <td>${s.h  || 0}</td>
+      <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
       <td>${s.k  || 0}</td>
       <td class="gd-stat-avg">${avg}</td>
@@ -2479,18 +2670,19 @@ function renderStatusBattingOrder() {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Nosso Time</th>
-          <th class="gd-stat-metric-head">AB</th><th class="gd-stat-metric-head">H</th><th class="gd-stat-metric-head">BB</th><th class="gd-stat-metric-head">K</th><th class="gd-stat-metric-head">AVG</th>
+          <th class="gd-stat-metric-head">AB</th><th class="gd-stat-metric-head">H</th><th class="gd-stat-metric-head">HR</th><th class="gd-stat-metric-head">BB</th><th class="gd-stat-metric-head">K</th><th class="gd-stat-metric-head">AVG</th>
         </tr>
       </thead>
       <tbody>
         ${rows}
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
-          <td>${totals.ab}</td><td>${totals.h}</td>
+          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td>
           <td>${totals.bb}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${totalAvg}</td>
         </tr>
@@ -2504,12 +2696,12 @@ function renderOpponentLineup() {
   if (!container) return;
   const side = opponentSide();
   const current = getCurrentTeamBatterIndex(side) % opponentLineup.length;
-  const totals = { ab: 0, h: 0, bb: 0, k: 0 };
+  const totals = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
 
   const rows = opponentLineup.map((row, index) => {
     const isCurrent = index === current;
     const s = getOpponentStats(index);
-    totals.ab += s.ab; totals.h += s.h; totals.bb += s.bb; totals.k += s.k;
+    totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
     const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${row.order}</td>
@@ -2521,6 +2713,7 @@ function renderOpponentLineup() {
       </td>
       <td>${s.ab || 0}</td>
       <td>${s.h  || 0}</td>
+      <td>${s.hr || 0}</td>
       <td>${s.bb || 0}</td>
       <td>${s.k  || 0}</td>
       <td class="gd-stat-avg">${avg}</td>
@@ -2541,18 +2734,19 @@ function renderOpponentLineup() {
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
         <col class="gd-stat-metric-col" />
+        <col class="gd-stat-metric-col" />
       </colgroup>
       <thead>
         <tr>
           <th colspan="2" class="gd-stats-head-team">Adversário</th>
-          <th>AB</th><th>H</th><th>BB</th><th>K</th><th>AVG</th>
+          <th>AB</th><th>H</th><th>HR</th><th>BB</th><th>K</th><th>AVG</th>
         </tr>
       </thead>
       <tbody>
         ${rows}
         <tr class="gd-stat-totals">
           <td colspan="2">Totais</td>
-          <td>${totals.ab}</td><td>${totals.h}</td>
+          <td>${totals.ab}</td><td>${totals.h}</td><td>${totals.hr}</td>
           <td>${totals.bb}</td><td>${totals.k}</td>
           <td class="gd-stat-avg">${totalAvg}</td>
         </tr>
@@ -2756,7 +2950,7 @@ function recordBatterStat(field, amount = 1) {
   }
 
   if (!gameState.playerStats[key]) {
-    gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0 };
+    gameState.playerStats[key] = { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
   }
   gameState.playerStats[key][field] = (gameState.playerStats[key][field] || 0) + amount;
 
@@ -2777,6 +2971,18 @@ function completeHit() {
   recordBatterStat("ab");
   recordBatterStat("h");
   logPlay("Hit");
+  nextBatter();
+}
+
+function completeHomeRun() {
+  const runs = gameState.bases.filter(Boolean).length + 1;
+  addCurrentTeamHit();
+  addCurrentTeamRuns(runs);
+  gameState.bases = [false, false, false];
+  recordBatterStat("ab");
+  recordBatterStat("h");
+  recordBatterStat("hr");
+  logPlay(runs > 1 ? `Home Run - ${runs} corridas` : "Home Run");
   nextBatter();
 }
 
@@ -2960,6 +3166,7 @@ if (PAGE === "status") {
 
   document.querySelector("#btnOut")?.addEventListener("click", addOut);
   document.querySelector("#btnHit")?.addEventListener("click", completeHit);
+  document.querySelector("#btnHomeRun")?.addEventListener("click", completeHomeRun);
   document.querySelector("#btnNextBatter")?.addEventListener("click", () => { nextBatter(); renderStatus(); });
   document.querySelector("#btnResetCount")?.addEventListener("click", resetCount);
   document.querySelector("#btnSwapTeams")?.addEventListener("click", swapTeamSides);

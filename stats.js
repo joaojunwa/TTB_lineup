@@ -9,6 +9,10 @@ const LIVE_BP_CACHE_KEY = "ttb_live_bp_stats_cache";
 const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
+const STATS_GAME_TO_LIVE_BP_MIGRATION_KEY = "ttb_stats_game_to_livebp_migration_2026_06_01";
+const STATS_GAME_TO_LIVE_BP_REMOTE_KEY = "ttb_stats_game_to_livebp_remote_2026_06_01";
+const STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY = "ttb_player_stats_v2_backup_before_livebp_move_2026_06_01";
+const STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY = "ttb_live_bp_player_stats_v1_backup_before_livebp_move_2026_06_01";
 
 const STAT_SOURCE_CONFIG = {
   game: {
@@ -149,7 +153,7 @@ async function _syncRemoteStats(source = "game") {
 }
 
 function _emptyStat() {
-  return { h: 0, ab: 0, bb: 0, k: 0 };
+  return { h: 0, ab: 0, bb: 0, k: 0, hr: 0 };
 }
 
 function _addStats(target, id, source = {}) {
@@ -158,6 +162,7 @@ function _addStats(target, id, source = {}) {
   target[id].ab += source.ab || 0;
   target[id].bb += source.bb || 0;
   target[id].k  += source.k  || 0;
+  target[id].hr += source.hr || source.homeRuns || 0;
 }
 
 function _normalizeStat(source = {}) {
@@ -166,11 +171,16 @@ function _normalizeStat(source = {}) {
     ab: Math.max(0, Number(source.ab || 0) || 0),
     bb: Math.max(0, Number(source.bb || 0) || 0),
     k: Math.max(0, Number(source.k || 0) || 0),
+    hr: Math.max(0, Number(source.hr || source.homeRuns || 0) || 0),
   };
 }
 
 function _hasStats(stat = {}) {
-  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.k || 0) > 0;
+  return (stat.ab || 0) > 0 || (stat.h || 0) > 0 || (stat.bb || 0) > 0 || (stat.k || 0) > 0 || (stat.hr || 0) > 0;
+}
+
+function _hasAnyStats(stats = {}) {
+  return Object.values(stats || {}).some((stat) => _hasStats(stat));
 }
 
 function _combineStats(...sources) {
@@ -179,6 +189,102 @@ function _combineStats(...sources) {
     Object.entries(source || {}).forEach(([id, stat]) => _addStats(combined, id, stat));
   });
   return combined;
+}
+
+function _mergeStats(base = {}, incoming = {}) {
+  const merged = {};
+  Object.entries(base || {}).forEach(([id, stat]) => {
+    merged[id] = _normalizeStat(stat);
+  });
+  Object.entries(incoming || {}).forEach(([id, stat]) => {
+    _addStats(merged, id, stat);
+  });
+  return merged;
+}
+
+function _containsStats(container = {}, incoming = {}) {
+  return Object.entries(incoming || {}).every(([id, stat]) => {
+    const current = _normalizeStat(container[id] || {});
+    const needed = _normalizeStat(stat);
+    return current.h >= needed.h && current.ab >= needed.ab && current.bb >= needed.bb && current.k >= needed.k && current.hr >= needed.hr;
+  });
+}
+
+function _backupStatsOnce(key, stats) {
+  try {
+    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(stats || {}));
+  } catch (_) {}
+}
+
+function _markGameStatsEmpty(updatedAt) {
+  _saveSourceStats("game", {}, { remote: false, updatedAt });
+}
+
+async function _moveExistingGameStatsToLiveBpOnce() {
+  const now = new Date().toISOString();
+  const localMigrationDone = localStorage.getItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done";
+  let liveBpStats = _loadSourceStats("liveBp");
+  let localMoved = false;
+
+  if (!localMigrationDone) {
+    const gameStats = _loadSourceStats("game");
+    _backupStatsOnce(STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY, gameStats);
+    _backupStatsOnce(STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY, liveBpStats);
+
+    if (_hasAnyStats(gameStats)) {
+      liveBpStats = _containsStats(liveBpStats, gameStats)
+        ? liveBpStats
+        : _mergeStats(liveBpStats, gameStats);
+      _saveSourceStats("liveBp", liveBpStats, { remote: false, updatedAt: now });
+      localMoved = true;
+    }
+
+    _markGameStatsEmpty(now);
+    localStorage.setItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY, "done");
+  }
+
+  if (!_canUseRemoteStats() || localStorage.getItem(STATS_GAME_TO_LIVE_BP_REMOTE_KEY) === "done") {
+    return localMoved;
+  }
+
+  try {
+    const [remoteGame, remoteLiveBp] = await Promise.all([
+      _fetchRemoteStats("game"),
+      _fetchRemoteStats("liveBp"),
+    ]);
+    const remoteGameStats = remoteGame?.stats || {};
+    const remoteLiveBpStats = remoteLiveBp?.stats || {};
+
+    if (_hasAnyStats(remoteGameStats)) {
+      const mergedLiveBpStats = _containsStats(remoteLiveBpStats, remoteGameStats)
+        ? remoteLiveBpStats
+        : _mergeStats(remoteLiveBpStats, remoteGameStats);
+      const currentLocalLiveBp = _loadSourceStats("liveBp");
+      const mergedLocalLiveBp = _containsStats(currentLocalLiveBp, remoteGameStats)
+        ? currentLocalLiveBp
+        : _mergeStats(currentLocalLiveBp, remoteGameStats);
+      _saveSourceStats("liveBp", mergedLocalLiveBp, { remote: false, updatedAt: now });
+      await _saveRemoteStats("liveBp", mergedLiveBpStats, now);
+    } else if (!_hasAnyStats(remoteLiveBpStats)) {
+      const localLiveBpStats = _loadSourceStats("liveBp");
+      if (_hasAnyStats(localLiveBpStats)) {
+        await _saveRemoteStats("liveBp", localLiveBpStats, now);
+      }
+    }
+
+    const currentGameStats = _loadSourceStats("game");
+    if (_hasAnyStats(currentGameStats)) {
+      await _saveRemoteStats("game", currentGameStats, new Date().toISOString());
+    } else {
+      await _saveRemoteStats("game", {}, now);
+      _markGameStatsEmpty(now);
+    }
+    localStorage.setItem(STATS_GAME_TO_LIVE_BP_REMOTE_KEY, "done");
+    return true;
+  } catch (err) {
+    console.warn("Migracao dos stats para Live BP em modo local:", err);
+    return localMoved;
+  }
 }
 
 function _nameKey(value) {
@@ -219,6 +325,7 @@ async function _fetchLiveBpStats() {
       byName[key].h  += Number(row.hits) || 0;
       byName[key].bb += Number(row.bb) || 0;
       byName[key].k  += Number(row.k) || 0;
+      byName[key].hr += Number(row.hr || row.homeRuns) || 0;
     });
     _liveBpByName = byName;
     _liveBpLoaded = true;
@@ -324,6 +431,7 @@ function _sortPlayers(players, stats) {
       return (sb.h || 0) - (sa.h || 0); /* tiebreak: more hits on top */
     }
     if (_statsSort === "hits") return (sb.h || 0) - (sa.h || 0);
+    if (_statsSort === "hr")   return (sb.hr || 0) - (sa.hr || 0);
     if (_statsSort === "ab")   return (sb.ab || 0) - (sa.ab || 0);
     return a.name.localeCompare(b.name, "pt-BR");
   });
@@ -373,13 +481,14 @@ function renderStatsPage() {
   players = _sortPlayers(players, stats);
 
   /* ── Team totals ── */
-  let teamH = 0, teamAb = 0, teamBb = 0, teamK = 0;
+  let teamH = 0, teamAb = 0, teamBb = 0, teamK = 0, teamHr = 0;
   players.forEach((p) => {
     const s = stats[p.id] || {};
     teamH  += s.h  || 0;
     teamAb += s.ab || 0;
     teamBb += s.bb || 0;
     teamK  += s.k  || 0;
+    teamHr += s.hr || 0;
   });
 
   tbody.innerHTML = "";
@@ -387,7 +496,7 @@ function renderStatsPage() {
   players.forEach((player, idx) => {
     const s  = stats[player.id] || _emptyStat();
     const id = player.id;
-    const rank = _statsSort === "avg" || _statsSort === "hits" || _statsSort === "ab" ? idx + 1 : null;
+    const rank = _statsSort === "avg" || _statsSort === "hits" || _statsSort === "hr" || _statsSort === "ab" ? idx + 1 : null;
     const hasData = _hasStats(s);
 
     const tr = document.createElement("tr");
@@ -463,6 +572,14 @@ function renderStatsPage() {
     hInput.dataset.field = "h";
     tdH.append(hInput);
 
+    /* HR input */
+    const tdHr = document.createElement("td");
+    tdHr.className = "stats-td-num";
+    const hrInput = _makeStatInput("Home runs de " + player.name, s.hr || 0, canEdit);
+    hrInput.dataset.playerId = id;
+    hrInput.dataset.field = "hr";
+    tdHr.append(hrInput);
+
     /* BB input */
     const tdBb = document.createElement("td");
     tdBb.className = "stats-td-num";
@@ -485,7 +602,7 @@ function renderStatsPage() {
     tdAvg.dataset.avgFor = id;
     tdAvg.textContent = _fmtAvg(s.h, s.ab);
 
-    tr.append(tdRank, tdPlayer, tdAb, tdH, tdBb, tdK, tdAvg);
+    tr.append(tdRank, tdPlayer, tdAb, tdH, tdHr, tdBb, tdK, tdAvg);
     tbody.append(tr);
 
     /* Input handlers */
@@ -501,14 +618,21 @@ function renderStatsPage() {
       /* H can't exceed AB */
       const currentH  = field === "h"  ? val : (all[id].h  || 0);
       const currentAb = field === "ab" ? val : (all[id].ab || 0);
+      const currentHr = field === "hr" ? val : (all[id].hr || 0);
       if (currentH > currentAb && currentAb > 0) {
         hInput.classList.add("stats-input-invalid");
         hInput.title = "Hits não pode ser maior que AB";
+      } else if (currentHr > currentH) {
+        hrInput.classList.add("stats-input-invalid");
+        hrInput.title = "Home runs nao pode ser maior que Hits";
       } else {
         hInput.classList.remove("stats-input-invalid");
         hInput.title = "";
+        hrInput.classList.remove("stats-input-invalid");
+        hrInput.title = "";
         all[id].h  = currentH;
         all[id].ab = currentAb;
+        all[id].hr = currentHr;
         _saveSourceStats(editSource, all);
       }
 
@@ -520,6 +644,7 @@ function renderStatsPage() {
 
     abInput.addEventListener("change", onInputChange);
     hInput.addEventListener("change", onInputChange);
+    hrInput.addEventListener("change", onInputChange);
     bbInput.addEventListener("change", onInputChange);
     kInput.addEventListener("change", onInputChange);
   });
@@ -538,6 +663,9 @@ function renderStatsPage() {
     const tdTotalH = document.createElement("td");
     tdTotalH.className = "stats-td-num";
     tdTotalH.textContent = teamH;
+    const tdTotalHr = document.createElement("td");
+    tdTotalHr.className = "stats-td-num";
+    tdTotalHr.textContent = teamHr;
     const tdTotalBb = document.createElement("td");
     tdTotalBb.className = "stats-td-num";
     tdTotalBb.textContent = teamBb;
@@ -547,7 +675,7 @@ function renderStatsPage() {
     const tdTotalAvg = document.createElement("td");
     tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb)}`;
     tdTotalAvg.textContent = _fmtAvg(teamH, teamAb);
-    tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalBb, tdTotalK, tdTotalAvg);
+    tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalHr, tdTotalBb, tdTotalK, tdTotalAvg);
     tbody.append(tfootTr);
   }
 }
@@ -601,7 +729,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
   _loadCachedLiveBpStats();
   renderStatsPage();
-  _syncRemoteStats("game");
-  _syncRemoteStats("liveBp");
-  _fetchLiveBpStats();
+  _moveExistingGameStatsToLiveBpOnce().then(() => {
+    renderStatsPage();
+    _syncRemoteStats("game");
+    _syncRemoteStats("liveBp");
+    _fetchLiveBpStats();
+  });
 });
