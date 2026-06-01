@@ -811,4 +811,16 @@ document.addEventListener("DOMContentLoaded", () => {
     _syncRemoteStats("liveBp");
     _fetchLiveBpStats();
   });
+
+  window.addEventListener("online", () => {
+    _moveExistingGameStatsToLiveBpOnce().then(() => {
+      _restoreStatsFromBackupIfNeeded().then((restored) => {
+        if (restored) renderStatsPage();
+      });
+      renderStatsPage();
+      _syncRemoteStats("game");
+      _syncRemoteStats("liveBp");
+      _fetchLiveBpStats();
+    });
+  });
 });
