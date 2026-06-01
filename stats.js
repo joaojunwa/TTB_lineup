@@ -321,7 +321,7 @@ async function _fetchLiveBpStats() {
       if (!key) return;
       if (!byName[key]) byName[key] = _emptyStat();
       byName[key].name = row.nome_jogador || byName[key].name || key;
-      byName[key].ab += Number(row.ab) || 0;
+      byName[key].ab += (Number(row.ab) || 0) + (Number(row.bb) || 0);
       byName[key].h  += Number(row.hits) || 0;
       byName[key].bb += Number(row.bb) || 0;
       byName[key].k  += Number(row.k) || 0;
@@ -356,19 +356,24 @@ function _buildLiveBpStats(players) {
 
 /* ─── Math ─────────────────────────────────────────── */
 
-function _calcAvg(h, ab) {
-  if (!ab || ab <= 0 || h < 0) return null;
-  return Math.min(h / ab, 1); /* cap at 1.000 if data error */
+function _officialAtBats(ab, bb) {
+  return Math.max(0, (Number(ab) || 0) - (Number(bb) || 0));
 }
 
-function _fmtAvg(h, ab) {
-  const avg = _calcAvg(h, ab);
+function _calcAvg(h, ab, bb = 0) {
+  const officialAb = _officialAtBats(ab, bb);
+  if (!officialAb || officialAb <= 0 || h < 0) return null;
+  return Math.min(h / officialAb, 1); /* cap at 1.000 if data error */
+}
+
+function _fmtAvg(h, ab, bb = 0) {
+  const avg = _calcAvg(h, ab, bb);
   if (avg === null) return "—";
   return avg.toFixed(3).replace(/^0/, "");
 }
 
-function _avgClass(h, ab) {
-  const avg = _calcAvg(h, ab);
+function _avgClass(h, ab, bb = 0) {
+  const avg = _calcAvg(h, ab, bb);
   if (avg === null)  return "stats-avg-none";
   if (avg >= 0.400)  return "stats-avg-elite";
   if (avg >= 0.300)  return "stats-avg-good";
@@ -422,8 +427,8 @@ function _sortPlayers(players, stats) {
     const sb = stats[b.id] || { h: 0, ab: 0 };
 
     if (_statsSort === "avg") {
-      const aa = _calcAvg(sa.h, sa.ab);
-      const ba = _calcAvg(sb.h, sb.ab);
+      const aa = _calcAvg(sa.h, sa.ab, sa.bb);
+      const ba = _calcAvg(sb.h, sb.ab, sb.bb);
       if (aa === null && ba === null) return (sb.h || 0) - (sa.h || 0);
       if (aa === null) return 1;
       if (ba === null) return -1;
@@ -598,9 +603,9 @@ function renderStatsPage() {
 
     /* AVG cell */
     const tdAvg = document.createElement("td");
-    tdAvg.className = `stats-td-avg ${_avgClass(s.h, s.ab)}`;
+    tdAvg.className = `stats-td-avg ${_avgClass(s.h, s.ab, s.bb)}`;
     tdAvg.dataset.avgFor = id;
-    tdAvg.textContent = _fmtAvg(s.h, s.ab);
+    tdAvg.textContent = _fmtAvg(s.h, s.ab, s.bb);
 
     tr.append(tdRank, tdPlayer, tdAb, tdH, tdHr, tdBb, tdK, tdAvg);
     tbody.append(tr);
@@ -615,30 +620,36 @@ function renderStatsPage() {
       if (!all[id]) all[id] = _normalizeStat(s);
       all[id][field] = val;
 
-      /* H can't exceed AB */
+      /* AVG uses official at-bats: total AB minus BB. */
       const currentH  = field === "h"  ? val : (all[id].h  || 0);
       const currentAb = field === "ab" ? val : (all[id].ab || 0);
+      const currentBb = field === "bb" ? val : (all[id].bb || 0);
       const currentHr = field === "hr" ? val : (all[id].hr || 0);
-      if (currentH > currentAb && currentAb > 0) {
+      const officialAb = _officialAtBats(currentAb, currentBb);
+      [bbInput, hInput, hrInput].forEach((input) => {
+        input.classList.remove("stats-input-invalid");
+        input.title = "";
+      });
+      if (currentBb > currentAb) {
+        bbInput.classList.add("stats-input-invalid");
+        bbInput.title = "BB nao pode ser maior que AB";
+      } else if (currentH > officialAb) {
         hInput.classList.add("stats-input-invalid");
-        hInput.title = "Hits não pode ser maior que AB";
+        hInput.title = "Hits nao pode ser maior que AB menos BB";
       } else if (currentHr > currentH) {
         hrInput.classList.add("stats-input-invalid");
         hrInput.title = "Home runs nao pode ser maior que Hits";
       } else {
-        hInput.classList.remove("stats-input-invalid");
-        hInput.title = "";
-        hrInput.classList.remove("stats-input-invalid");
-        hrInput.title = "";
         all[id].h  = currentH;
         all[id].ab = currentAb;
+        all[id].bb = currentBb;
         all[id].hr = currentHr;
         _saveSourceStats(editSource, all);
       }
 
       /* Update AVG in place */
-      tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab);
-      tdAvg.className = `stats-td-avg ${_avgClass(all[id].h, all[id].ab)}`;
+      tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab, all[id].bb);
+      tdAvg.className = `stats-td-avg ${_avgClass(all[id].h, all[id].ab, all[id].bb)}`;
       _scheduleResort();
     }
 
@@ -673,8 +684,8 @@ function renderStatsPage() {
     tdTotalK.className = "stats-td-num";
     tdTotalK.textContent = teamK;
     const tdTotalAvg = document.createElement("td");
-    tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb)}`;
-    tdTotalAvg.textContent = _fmtAvg(teamH, teamAb);
+    tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb, teamBb)}`;
+    tdTotalAvg.textContent = _fmtAvg(teamH, teamAb, teamBb);
     tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalHr, tdTotalBb, tdTotalK, tdTotalAvg);
     tbody.append(tfootTr);
   }

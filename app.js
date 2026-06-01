@@ -59,8 +59,9 @@ function getPlayerAvg(playerId) {
   try {
     const stats = JSON.parse(localStorage.getItem(PLAYER_STATS_KEY)) || {};
     const s = stats[playerId];
-    if (!s || !s.ab) return null;
-    return s.h / s.ab;
+    const officialAb = getOfficialAtBats(s);
+    if (!s || !officialAb) return null;
+    return s.h / officialAb;
   } catch (_) {
     return null;
   }
@@ -2232,7 +2233,12 @@ function getMatchResult(entry) {
 }
 
 function getStatAvgText(stat = {}) {
-  return stat.ab > 0 ? "." + String(Math.round((stat.h / stat.ab) * 1000)).padStart(3, "0") : "—";
+  const officialAb = getOfficialAtBats(stat);
+  return officialAb > 0 ? "." + String(Math.round(((stat.h || 0) / officialAb) * 1000)).padStart(3, "0") : "—";
+}
+
+function getOfficialAtBats(stat = {}) {
+  return Math.max(0, (Number(stat?.ab) || 0) - (Number(stat?.bb) || 0));
 }
 
 function formatHistoryAvg(stat = {}) {
@@ -2317,7 +2323,7 @@ function renderBoxStatsTable(title, rows) {
 }
 
 function getHistorySummary(history = loadMatchHistory()) {
-  const summary = { wins: 0, losses: 0, ties: 0, runsFor: 0, runsAgainst: 0, ab: 0, h: 0 };
+  const summary = { wins: 0, losses: 0, ties: 0, runsFor: 0, runsAgainst: 0, ab: 0, h: 0, bb: 0 };
   history.forEach((entry) => {
     const result = getMatchResult(entry);
     if (result.className === "is-win") summary.wins += 1;
@@ -2329,6 +2335,7 @@ function getHistorySummary(history = loadMatchHistory()) {
       const stat = entry.playerStats?.[player.id] || {};
       summary.ab += stat.ab || 0;
       summary.h += stat.h || 0;
+      summary.bb += stat.bb || 0;
     });
   });
   return summary;
@@ -2643,7 +2650,7 @@ function renderStatusBattingOrder() {
     const pos = getAssignedPosition(player.id) || "—";
     const s = gameState.playerStats[player.id] || { ab: 0, h: 0, bb: 0, k: 0, hr: 0 };
     totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
-    const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
+    const avg = getStatAvgText(s);
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${i + 1}</td>
       <td class="gd-stat-name">${escapeHtml(player.name)}<span class="gd-stat-pos"> ${escapeHtml(pos)}</span></td>
@@ -2656,9 +2663,7 @@ function renderStatusBattingOrder() {
     </tr>`;
   }).join("");
 
-  const totalAvg = totals.ab > 0
-    ? "." + String(Math.round((totals.h / totals.ab) * 1000)).padStart(3, "0")
-    : "—";
+  const totalAvg = getStatAvgText(totals);
 
   container.innerHTML = `
     <table class="gd-stats-table">
@@ -2702,7 +2707,7 @@ function renderOpponentLineup() {
     const isCurrent = index === current;
     const s = getOpponentStats(index);
     totals.ab += s.ab || 0; totals.h += s.h || 0; totals.hr += s.hr || 0; totals.bb += s.bb || 0; totals.k += s.k || 0;
-    const avg = s.ab > 0 ? "." + String(Math.round((s.h / s.ab) * 1000)).padStart(3, "0") : "—";
+    const avg = getStatAvgText(s);
     return `<tr class="${isCurrent ? "gd-stat-current" : ""}">
       <td class="gd-stat-num">${row.order}</td>
       <td class="gd-stat-name gd-opp-inputs">
@@ -2720,9 +2725,7 @@ function renderOpponentLineup() {
     </tr>`;
   }).join("");
 
-  const totalAvg = totals.ab > 0
-    ? "." + String(Math.round((totals.h / totals.ab) * 1000)).padStart(3, "0")
-    : "—";
+  const totalAvg = getStatAvgText(totals);
 
   container.innerHTML = `
     <table class="gd-stats-table">
@@ -2961,6 +2964,7 @@ function recordBatterStat(field, amount = 1) {
 
 function completeWalk() {
   const runs = advanceBatterByWalk();
+  recordBatterStat("ab");
   recordBatterStat("bb");
   logPlay(runs ? "Walk (BB) - entrou 1 corrida" : "Walk (BB)");
   nextBatter();
