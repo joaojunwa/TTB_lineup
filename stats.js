@@ -733,18 +733,32 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
-function _restoreStatsFromBackupIfNeeded() {
-  const migrationDone = localStorage.getItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done";
-  if (!migrationDone) return;
+async function _restoreStatsFromBackupIfNeeded() {
   const liveBp = _loadSourceStats("liveBp");
   const game = _loadSourceStats("game");
-  if (_hasAnyStats(liveBp) || _hasAnyStats(game)) return;
+  if (_hasAnyStats(liveBp) || _hasAnyStats(game)) return false;
+
   try {
     const backup = JSON.parse(localStorage.getItem(STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY));
     if (backup && _hasAnyStats(backup)) {
       _saveSourceStats("liveBp", backup, { remote: false });
+      return true;
     }
   } catch (_) {}
+
+  if (!_canUseRemoteStats()) return false;
+  try {
+    const [remoteGame, remoteLiveBp] = await Promise.all([
+      _fetchRemoteStats("game"),
+      _fetchRemoteStats("liveBp"),
+    ]);
+    const best = [remoteLiveBp?.stats, remoteGame?.stats].find((s) => s && _hasAnyStats(s));
+    if (best) {
+      _saveSourceStats("liveBp", best, { remote: false });
+      return true;
+    }
+  } catch (_) {}
+  return false;
 }
 
 /* ─── Init ───────────────────────────────────────────── */
@@ -783,11 +797,15 @@ document.addEventListener("DOMContentLoaded", () => {
   gameSource?.addEventListener("change", onSourceChange);
   liveBpSource?.addEventListener("change", onSourceChange);
 
-  _restoreStatsFromBackupIfNeeded();
   _loadCachedLiveBpStats();
   renderStatsPage();
+  _restoreStatsFromBackupIfNeeded().then((restored) => {
+    if (restored) renderStatsPage();
+  });
   _moveExistingGameStatsToLiveBpOnce().then(() => {
-    _restoreStatsFromBackupIfNeeded();
+    _restoreStatsFromBackupIfNeeded().then((restored) => {
+      if (restored) renderStatsPage();
+    });
     renderStatsPage();
     _syncRemoteStats("game");
     _syncRemoteStats("liveBp");
