@@ -3616,7 +3616,10 @@ details[open] .historico-summary::before {
 .gd-history-page {
   display: grid;
   gap: 22px;
-  padding: 26px 0 38px;
+  padding: 26px 24px 38px;
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .gd-history-page[hidden],

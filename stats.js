@@ -733,6 +733,20 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
+function _restoreStatsFromBackupIfNeeded() {
+  const migrationDone = localStorage.getItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done";
+  if (!migrationDone) return;
+  const liveBp = _loadSourceStats("liveBp");
+  const game = _loadSourceStats("game");
+  if (_hasAnyStats(liveBp) || _hasAnyStats(game)) return;
+  try {
+    const backup = JSON.parse(localStorage.getItem(STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY));
+    if (backup && _hasAnyStats(backup)) {
+      _saveSourceStats("liveBp", backup, { remote: false });
+    }
+  } catch (_) {}
+}
+
 /* ─── Init ───────────────────────────────────────────── */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -769,9 +783,11 @@ document.addEventListener("DOMContentLoaded", () => {
   gameSource?.addEventListener("change", onSourceChange);
   liveBpSource?.addEventListener("change", onSourceChange);
 
+  _restoreStatsFromBackupIfNeeded();
   _loadCachedLiveBpStats();
   renderStatsPage();
   _moveExistingGameStatsToLiveBpOnce().then(() => {
+    _restoreStatsFromBackupIfNeeded();
     renderStatsPage();
     _syncRemoteStats("game");
     _syncRemoteStats("liveBp");
