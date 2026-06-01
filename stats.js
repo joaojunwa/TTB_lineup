@@ -10,10 +10,6 @@ const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
 const AVG_QUALIFYING_APPEARANCES = 4;
-const STATS_GAME_TO_LIVE_BP_MIGRATION_KEY = "ttb_stats_game_to_livebp_migration_2026_06_01";
-const STATS_GAME_TO_LIVE_BP_REMOTE_KEY = "ttb_stats_game_to_livebp_remote_2026_06_01";
-const STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY = "ttb_player_stats_v2_backup_before_livebp_move_2026_06_01";
-const STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY = "ttb_live_bp_player_stats_v1_backup_before_livebp_move_2026_06_01";
 
 const STAT_SOURCE_CONFIG = {
   game: {
@@ -139,7 +135,7 @@ async function _syncRemoteStats(source = "game") {
     const remoteHasStats = Object.keys(remote?.stats || {}).length > 0;
     const localHasStats = Object.keys(localStats).length > 0;
 
-    if (remoteHasStats && (!localUpdated || !remote.updatedAt || remote.updatedAt >= localUpdated)) {
+    if (remoteHasStats && (!localHasStats || !localUpdated || !remote.updatedAt || remote.updatedAt >= localUpdated)) {
       _saveSourceStats(source, remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
       renderStatsPage();
       return;
@@ -213,80 +209,12 @@ function _containsStats(container = {}, incoming = {}) {
   });
 }
 
-function _backupStatsOnce(key, stats) {
-  try {
-    if (!localStorage.getItem(key)) localStorage.setItem(key, JSON.stringify(stats || {}));
-  } catch (_) {}
-}
-
-function _markGameStatsEmpty(updatedAt) {
-  _saveSourceStats("game", {}, { remote: false, updatedAt });
-}
-
-async function _moveExistingGameStatsToLiveBpOnce() {
-  const now = new Date().toISOString();
-  const localMigrationDone = localStorage.getItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done";
-  let liveBpStats = _loadSourceStats("liveBp");
-  let localMoved = false;
-
-  if (!localMigrationDone) {
-    const gameStats = _loadSourceStats("game");
-    _backupStatsOnce(STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY, gameStats);
-    _backupStatsOnce(STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY, liveBpStats);
-
-    if (_hasAnyStats(gameStats)) {
-      liveBpStats = _containsStats(liveBpStats, gameStats)
-        ? liveBpStats
-        : _mergeStats(liveBpStats, gameStats);
-      _saveSourceStats("liveBp", liveBpStats, { remote: false, updatedAt: now });
-      localMoved = true;
-    }
-
-    _markGameStatsEmpty(now);
-    localStorage.setItem(STATS_GAME_TO_LIVE_BP_MIGRATION_KEY, "done");
-  }
-
-  if (!_canUseRemoteStats() || localStorage.getItem(STATS_GAME_TO_LIVE_BP_REMOTE_KEY) === "done") {
-    return localMoved;
-  }
-
-  try {
-    const [remoteGame, remoteLiveBp] = await Promise.all([
-      _fetchRemoteStats("game"),
-      _fetchRemoteStats("liveBp"),
-    ]);
-    const remoteGameStats = remoteGame?.stats || {};
-    const remoteLiveBpStats = remoteLiveBp?.stats || {};
-
-    if (_hasAnyStats(remoteGameStats)) {
-      const mergedLiveBpStats = _containsStats(remoteLiveBpStats, remoteGameStats)
-        ? remoteLiveBpStats
-        : _mergeStats(remoteLiveBpStats, remoteGameStats);
-      const currentLocalLiveBp = _loadSourceStats("liveBp");
-      const mergedLocalLiveBp = _containsStats(currentLocalLiveBp, remoteGameStats)
-        ? currentLocalLiveBp
-        : _mergeStats(currentLocalLiveBp, remoteGameStats);
-      _saveSourceStats("liveBp", mergedLocalLiveBp, { remote: false, updatedAt: now });
-      await _saveRemoteStats("liveBp", mergedLiveBpStats, now);
-    } else if (!_hasAnyStats(remoteLiveBpStats)) {
-      const localLiveBpStats = _loadSourceStats("liveBp");
-      if (_hasAnyStats(localLiveBpStats)) {
-        await _saveRemoteStats("liveBp", localLiveBpStats, now);
-      }
-    }
-
-    const currentGameStats = _loadSourceStats("game");
-    if (_hasAnyStats(currentGameStats)) {
-      await _saveRemoteStats("game", currentGameStats, new Date().toISOString());
-    } else {
-      await _saveRemoteStats("game", {}, now);
-      _markGameStatsEmpty(now);
-    }
-    localStorage.setItem(STATS_GAME_TO_LIVE_BP_REMOTE_KEY, "done");
-    return true;
-  } catch (err) {
-    console.warn("Migracao dos stats para Live BP em modo local:", err);
-    return localMoved;
+function _recoverLiveBpToGameIfNeeded() {
+  const game = _loadSourceStats("game");
+  if (_hasAnyStats(game)) return;
+  const liveBp = _loadSourceStats("liveBp");
+  if (_hasAnyStats(liveBp)) {
+    _saveSourceStats("game", liveBp, { remote: false });
   }
 }
 
@@ -733,34 +661,6 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
-async function _restoreStatsFromBackupIfNeeded() {
-  const liveBp = _loadSourceStats("liveBp");
-  const game = _loadSourceStats("game");
-  if (_hasAnyStats(liveBp) || _hasAnyStats(game)) return false;
-
-  try {
-    const backup = JSON.parse(localStorage.getItem(STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY));
-    if (backup && _hasAnyStats(backup)) {
-      _saveSourceStats("liveBp", backup, { remote: false });
-      return true;
-    }
-  } catch (_) {}
-
-  if (!_canUseRemoteStats()) return false;
-  try {
-    const [remoteGame, remoteLiveBp] = await Promise.all([
-      _fetchRemoteStats("game"),
-      _fetchRemoteStats("liveBp"),
-    ]);
-    const best = [remoteLiveBp?.stats, remoteGame?.stats].find((s) => s && _hasAnyStats(s));
-    if (best) {
-      _saveSourceStats("liveBp", best, { remote: false });
-      return true;
-    }
-  } catch (_) {}
-  return false;
-}
-
 /* ─── Init ───────────────────────────────────────────── */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -797,30 +697,16 @@ document.addEventListener("DOMContentLoaded", () => {
   gameSource?.addEventListener("change", onSourceChange);
   liveBpSource?.addEventListener("change", onSourceChange);
 
+  _recoverLiveBpToGameIfNeeded();
   _loadCachedLiveBpStats();
   renderStatsPage();
-  _restoreStatsFromBackupIfNeeded().then((restored) => {
-    if (restored) renderStatsPage();
-  });
-  _moveExistingGameStatsToLiveBpOnce().then(() => {
-    _restoreStatsFromBackupIfNeeded().then((restored) => {
-      if (restored) renderStatsPage();
-    });
-    renderStatsPage();
+  _syncRemoteStats("game");
+  _syncRemoteStats("liveBp");
+  _fetchLiveBpStats();
+
+  window.addEventListener("online", () => {
     _syncRemoteStats("game");
     _syncRemoteStats("liveBp");
     _fetchLiveBpStats();
-  });
-
-  window.addEventListener("online", () => {
-    _moveExistingGameStatsToLiveBpOnce().then(() => {
-      _restoreStatsFromBackupIfNeeded().then((restored) => {
-        if (restored) renderStatsPage();
-      });
-      renderStatsPage();
-      _syncRemoteStats("game");
-      _syncRemoteStats("liveBp");
-      _fetchLiveBpStats();
-    });
   });
 });

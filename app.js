@@ -39,10 +39,6 @@ const PLAYER_STATS_REMOTE_ID = "ttb_player_stats_global";
 const APP_LIVE_BP_PLAYER_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const APP_LIVE_BP_PLAYER_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
-const APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY = "ttb_stats_game_to_livebp_migration_2026_06_01";
-const APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY = "ttb_stats_game_to_livebp_remote_2026_06_01";
-const APP_STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY = "ttb_player_stats_v2_backup_before_livebp_move_2026_06_01";
-const APP_STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY = "ttb_live_bp_player_stats_v1_backup_before_livebp_move_2026_06_01";
 const ACTIVE_STATUS_GAME_ID = "ttb_jogo_ativo";
 let playerStatsSaveTimer = null;
 let activeGameLineupSaveTimer = null;
@@ -245,86 +241,6 @@ function backupStatsMapOnce(key, stats) {
   } catch (_) {}
 }
 
-function moveExistingGameStatsToLiveBpLocal() {
-  try {
-    if (localStorage.getItem(APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY) === "done") {
-      moveExistingGameStatsToLiveBpRemote()
-        .catch((err) => console.warn("Erro ao migrar stats remotos para Live BP:", err));
-      return false;
-    }
-
-    const now = new Date().toISOString();
-    const gameStats = loadStatsMap(PLAYER_STATS_KEY);
-    const liveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
-    const shouldMoveStats = hasAnyPlayerStats(gameStats);
-
-    backupStatsMapOnce(APP_STATS_GAME_TO_LIVE_BP_BACKUP_GAME_KEY, gameStats);
-    backupStatsMapOnce(APP_STATS_GAME_TO_LIVE_BP_BACKUP_LIVE_BP_KEY, liveBpStats);
-
-    if (shouldMoveStats) {
-      const movedLiveBpStats = containsPlayerStats(liveBpStats, gameStats)
-        ? liveBpStats
-        : mergePlayerStats(liveBpStats, gameStats);
-      localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_KEY, JSON.stringify(movedLiveBpStats));
-      localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY, now);
-    }
-
-    localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify({}));
-    localStorage.setItem(PLAYER_STATS_UPDATED_KEY, now);
-    localStorage.setItem(APP_STATS_GAME_TO_LIVE_BP_MIGRATION_KEY, "done");
-
-    moveExistingGameStatsToLiveBpRemote()
-      .catch((err) => console.warn("Erro ao migrar stats remotos para Live BP:", err));
-
-    return shouldMoveStats;
-  } catch (err) {
-    console.warn("Migracao local dos stats para Live BP falhou:", err);
-    return false;
-  }
-}
-
-async function moveExistingGameStatsToLiveBpRemote() {
-  if (!canSaveRemotePlayerStats()) return;
-  if (localStorage.getItem(APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY) === "done") return;
-
-  const now = new Date().toISOString();
-  const [remoteGame, remoteLiveBp] = await Promise.all([
-    fetchRemoteStatsById(PLAYER_STATS_REMOTE_ID),
-    fetchRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID),
-  ]);
-  const remoteGameStats = remoteGame?.stats || {};
-  const remoteLiveBpStats = remoteLiveBp?.stats || {};
-
-  if (hasAnyPlayerStats(remoteGameStats)) {
-    const movedLiveBpStats = containsPlayerStats(remoteLiveBpStats, remoteGameStats)
-      ? remoteLiveBpStats
-      : mergePlayerStats(remoteLiveBpStats, remoteGameStats);
-    const currentLocalLiveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
-    const localLiveBpStats = containsPlayerStats(currentLocalLiveBpStats, remoteGameStats)
-      ? currentLocalLiveBpStats
-      : mergePlayerStats(currentLocalLiveBpStats, remoteGameStats);
-    localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_KEY, JSON.stringify(localLiveBpStats));
-    localStorage.setItem(APP_LIVE_BP_PLAYER_STATS_UPDATED_KEY, now);
-    await saveRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID, movedLiveBpStats, now);
-  } else if (!hasAnyPlayerStats(remoteLiveBpStats)) {
-    const localLiveBpStats = loadStatsMap(APP_LIVE_BP_PLAYER_STATS_KEY);
-    if (hasAnyPlayerStats(localLiveBpStats)) {
-      await saveRemoteStatsById(APP_LIVE_BP_PLAYER_STATS_REMOTE_ID, localLiveBpStats, now);
-    }
-  }
-
-  const currentGameStats = loadStatsMap(PLAYER_STATS_KEY);
-  if (hasAnyPlayerStats(currentGameStats)) {
-    await saveRemoteStatsById(PLAYER_STATS_REMOTE_ID, currentGameStats, new Date().toISOString());
-  } else {
-    await saveRemoteStatsById(PLAYER_STATS_REMOTE_ID, {}, now);
-    localStorage.setItem(PLAYER_STATS_KEY, JSON.stringify({}));
-    localStorage.setItem(PLAYER_STATS_UPDATED_KEY, now);
-  }
-  localStorage.setItem(APP_STATS_GAME_TO_LIVE_BP_REMOTE_KEY, "done");
-}
-
-moveExistingGameStatsToLiveBpLocal();
 
 function saveLineupState() {
   try {
