@@ -432,11 +432,14 @@ function _sortPlayers(players, stats) {
     if (_statsSort === "avg") {
       const aa = _calcAvg(sa.h, sa.ab, sa.bb, sa.hbp);
       const ba = _calcAvg(sb.h, sb.ab, sb.bb, sb.hbp);
+      const officialAa = _officialAtBats(sa.ab, sa.bb, sa.hbp);
+      const officialBa = _officialAtBats(sb.ab, sb.bb, sb.hbp);
       if (aa === null && ba === null) return (sb.h || 0) - (sa.h || 0);
       if (aa === null) return 1;
       if (ba === null) return -1;
       if (Math.abs(ba - aa) > 1e-9) return ba - aa;
-      return (sb.h || 0) - (sa.h || 0); /* tiebreak: more hits on top */
+      if (officialBa !== officialAa) return officialBa - officialAa;
+      return (sb.h || 0) - (sa.h || 0);
     }
     if (_statsSort === "hits") return (sb.h || 0) - (sa.h || 0);
     if (_statsSort === "hr")   return (sb.hr || 0) - (sa.hr || 0);
