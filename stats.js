@@ -10,6 +10,9 @@ const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
 const AVG_QUALIFYING_APPEARANCES = 4;
+/* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 5).
+   Assim AVG 1.000 em 4 AB (score .444) fica abaixo de .800 em 7 AB (score .467) */
+const AVG_CONFIDENCE_WEIGHT = 5;
 
 const STAT_SOURCE_CONFIG = {
   game: {
@@ -359,14 +362,23 @@ let _statsSearch = "";
 let _statsSort   = localStorage.getItem(STATS_SORT_KEY) || "avg";
 let _statsSources = _loadStatsSources();
 
+/* Score do ranking: AVG ponderado pelo volume de AB — AVG perfeito em
+   poucos AB não passa um AVG bom sustentado em mais AB */
+function _rankScore(s) {
+  const avg = _calcAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
+  if (avg === null) return null;
+  const ab = Number(s.ab) || 0;
+  return avg * (ab / (ab + AVG_CONFIDENCE_WEIGHT));
+}
+
 function _sortPlayers(players, stats) {
   return [...players].sort((a, b) => {
     const sa = stats[a.id] || { h: 0, ab: 0 };
     const sb = stats[b.id] || { h: 0, ab: 0 };
 
     if (_statsSort === "avg") {
-      const aa = _calcAvg(sa.h, sa.ab, sa.bb, sa.hbp, sa.hr);
-      const ba = _calcAvg(sb.h, sb.ab, sb.bb, sb.hbp, sb.hr);
+      const aa = _rankScore(sa);
+      const ba = _rankScore(sb);
       const officialAa = _officialAtBats(sa.ab, sa.bb, sa.hbp);
       const officialBa = _officialAtBats(sb.ab, sb.bb, sb.hbp);
       const appearancesA = Number(sa.ab) || 0;
@@ -378,7 +390,7 @@ function _sortPlayers(players, stats) {
       if (ba === null) return -1;
       if (qualifiedA !== qualifiedB) return qualifiedB ? 1 : -1;
       if (Math.abs(ba - aa) > 1e-9) return ba - aa;
-      /* AVG igual: mais AB primeiro, depois HR, depois hits totais */
+      /* Score igual: mais AB primeiro, depois HR, depois hits totais */
       if (appearancesB !== appearancesA) return appearancesB - appearancesA;
       if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
       if (officialBa !== officialAa) return officialBa - officialAa;
