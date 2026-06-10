@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Simulador de Lineup de Baseball</title>
-    <link rel="stylesheet" href="styles.css?v=18" />
+    <link rel="stylesheet" href="styles.css?v=19" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -43,6 +43,14 @@
           <button id="resetLineup" type="button">
             <span class="label-full">Recarregar</span>
             <span class="label-short">Reset</span>
+          </button>
+          <button id="autoFill" type="button" title="Preenche as posições vazias automaticamente usando as tags de posição (P, C, IF, OF, UT) e o AVG de cada jogador">
+            <span class="label-full">Auto-preencher</span>
+            <span class="label-short">Auto</span>
+          </button>
+          <button id="undoLineup" type="button" title="Desfazer última alteração (Ctrl+Z)" disabled>
+            <span class="label-full">↩ Desfazer</span>
+            <span class="label-short">↩</span>
           </button>
           <button id="exportLineup" type="button">
             <span class="label-full">Exportar</span>
@@ -143,7 +151,7 @@
     </main>
 
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=19"></script>
+    <script src="app.js?v=20"></script>
     <script src="lineup-sync.js?v=5"></script>
   </body>
 </html>

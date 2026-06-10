@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stats — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=18" />
+    <link rel="stylesheet" href="styles.css?v=19" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -70,8 +70,8 @@
                   <th class="stats-th-rank">#</th>
                   <th class="stats-th-player">Jogador</th>
                   <th class="stats-th-num" title="Aparições no bastão — o AVG desconta BB e HBP automaticamente">AB</th>
-                  <th class="stats-th-num" title="Hits — acertos">H</th>
-                  <th class="stats-th-num" title="Home Runs">HR</th>
+                  <th class="stats-th-num" title="Hits — acertos (inclui home runs)">H</th>
+                  <th class="stats-th-num" title="Home Runs — contam como hit, então somam no H e no AVG">HR</th>
                   <th class="stats-th-num" title="Bases on Balls — caminhadas (walk)">BB</th>
                   <th class="stats-th-num" title="Hit by Pitch — dead ball">HBP</th>
                   <th class="stats-th-num" title="Strikeouts — ponchados">K</th>
@@ -92,8 +92,8 @@
               </thead>
               <tbody>
                 <tr><td>AB</td><td>Aparições totais digitadas.</td></tr>
-                <tr><td>H</td><td>Rebatidas válidas.</td></tr>
-                <tr><td>HR</td><td>Home runs.</td></tr>
+                <tr><td>H</td><td>Rebatidas válidas (inclui HR).</td></tr>
+                <tr><td>HR</td><td>Home runs — contam como hit: ao digitar, somam no H e entram no AVG.</td></tr>
                 <tr><td>BB</td><td>Walks; não entram no AB oficial.</td></tr>
                 <tr><td>HBP</td><td>Dead ball; não entra no AB oficial.</td></tr>
                 <tr><td>K</td><td>Strikeouts.</td></tr>
@@ -107,7 +107,7 @@
     </main>
 
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=19"></script>
-    <script src="stats.js?v=19"></script>
+    <script src="app.js?v=20"></script>
+    <script src="stats.js?v=20"></script>
   </body>
 </html>

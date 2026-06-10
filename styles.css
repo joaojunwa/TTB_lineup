@@ -5349,3 +5349,36 @@ details[open] .historico-summary::before {
   background: #4de076;
   color: #0d1520;
 }
+
+/* ── Sugestão de posição compatível (jogador selecionado/arrastado) ── */
+.field-slot.is-suggested {
+  border-color: rgba(96, 210, 200, 0.85);
+  background: rgba(96, 210, 200, 0.12);
+  animation: slot-suggest-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes slot-suggest-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(96, 210, 200, 0.4); }
+  50%      { box-shadow: 0 0 0 6px rgba(96, 210, 200, 0.12); }
+}
+
+.field-slot.is-drop-hover.is-suggested {
+  animation: none;
+}
+
+/* ── Botão desfazer desabilitado ── */
+.toolbar-actions button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolbar-actions button:disabled:hover {
+  background: #1a2638;
+  border-color: var(--line);
+}
+
+/* Espectador não edita: esconde auto-preencher e desfazer */
+.is-spectator #autoFill,
+.is-spectator #undoLineup {
+  display: none;
+}

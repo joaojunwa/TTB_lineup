@@ -29,6 +29,8 @@ let bancoPlayers = new Set();
 let rosterSearchTerm = "";
 let positionFilter = "";
 let designatedPitcherId = "";
+const UNDO_LIMIT = 30;
+let undoStack = [];
 const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
 let customPlayers = [];
 const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
@@ -459,6 +461,195 @@ function getPlayer(id) {
   return roster.find((player) => player.id === id);
 }
 
+function isLineupEditable() {
+  return (
+    !(typeof isSpectator === "function" && isSpectator()) &&
+    !document.body.classList.contains("is-viewing-other")
+  );
+}
+
+/* ═══ Desfazer (Ctrl+Z) ═══ */
+
+function _lineupUndoSnapshot() {
+  return JSON.stringify({
+    assignments,
+    battingOrders,
+    lineupPending: [...lineupPending],
+    bancoPlayers: [...bancoPlayers],
+    dhEnabled,
+    dhAssignment,
+    designatedPitcherId,
+  });
+}
+
+function pushUndoState() {
+  const snap = _lineupUndoSnapshot();
+  if (undoStack[undoStack.length - 1] === snap) return;
+  undoStack.push(snap);
+  if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+  updateUndoButton();
+}
+
+function undoLineupChange() {
+  if (!isLineupEditable()) return;
+  const raw = undoStack.pop();
+  updateUndoButton();
+  if (!raw) {
+    showToast("Nada para desfazer", "info");
+    return;
+  }
+  const s = JSON.parse(raw);
+  assignments         = s.assignments;
+  battingOrders       = s.battingOrders;
+  lineupPending       = new Set(s.lineupPending);
+  bancoPlayers        = new Set(s.bancoPlayers);
+  dhEnabled           = s.dhEnabled;
+  dhAssignment        = s.dhAssignment;
+  designatedPitcherId = s.designatedPitcherId;
+  render();
+  showToast("Alteração desfeita", "success");
+}
+
+function updateUndoButton() {
+  const btn = document.getElementById("undoLineup");
+  if (btn) btn.disabled = undoStack.length === 0;
+}
+
+/* ═══ Encaixe inteligente de posições ═══ */
+
+const POSITION_FILL_ORDER = ["P", "C", "SS", "2B", "1B", "3B", "CF", "LF", "RF"];
+
+function positionTagFor(positionId) {
+  if (positionId === "P" || positionId === "C") return positionId;
+  return ["1B", "2B", "3B", "SS"].includes(positionId) ? "IF" : "OF";
+}
+
+/* 3 = tag exata · 2 = UT · 1 = sem tags (desconhecido) · 0 = incompatível */
+function positionFitScore(player, positionId) {
+  const tags = player?.positionTags || [];
+  if (tags.includes(positionTagFor(positionId))) return 3;
+  if (tags.includes("UT")) return 2;
+  if (tags.length === 0) return 1;
+  return 0;
+}
+
+function playerFitsPosition(player, positionId) {
+  const tags = player?.positionTags || [];
+  return tags.includes(positionTagFor(positionId)) || tags.includes("UT");
+}
+
+function findBestOpenPosition(player) {
+  const open = POSITION_FILL_ORDER.filter((id) => !assignments[id]);
+  if (!open.length) return "";
+  const best = open
+    .map((id) => ({ id, score: positionFitScore(player, id) }))
+    .sort((a, b) => b.score - a.score)[0];
+  return best.score > 0 ? best.id : open[0];
+}
+
+function smartPlacePlayer(playerId) {
+  if (!isLineupEditable()) return;
+  const player = getPlayer(playerId);
+  if (!player) return;
+  if (dhEnabled && dhAssignment === playerId) return;
+  if (Object.values(assignments).includes(playerId)) return; /* já está no campo */
+  const target = findBestOpenPosition(player);
+  if (!target) {
+    showToast("Nenhuma posição livre no campo", "warn");
+    return;
+  }
+  assignPlayerToPosition(playerId, target);
+  if (assignments[target] === playerId) {
+    showToast(`${player.name} → ${target}`, "success");
+  }
+}
+
+function autoFillPositions() {
+  if (!isLineupEditable()) return;
+  const openIds = POSITION_FILL_ORDER.filter((id) => !assignments[id]);
+  if (!openIds.length) {
+    showToast("Todas as posições já estão preenchidas", "info");
+    return;
+  }
+
+  const used = new Set(Object.values(assignments).filter(Boolean));
+  if (dhEnabled && dhAssignment) used.add(dhAssignment);
+  const pool = roster.filter((p) => !used.has(p.id));
+  /* prioridade: quem já está no lineup "a definir" > banco > elenco */
+  const sourceRank = (p) => (lineupPending.has(p.id) ? 0 : bancoPlayers.has(p.id) ? 1 : 2);
+
+  const undoLenBefore = undoStack.length;
+  pushUndoState();
+  let filled = 0;
+
+  openIds.forEach((positionId) => {
+    const best = pool
+      .filter((p) => positionFitScore(p, positionId) > 0)
+      .filter((p) =>
+        lineupPending.has(p.id) ||
+        (dhEnabled && positionId === "P") ||
+        getActiveBatterIds().length < 9,
+      )
+      .sort((a, b) =>
+        positionFitScore(b, positionId) - positionFitScore(a, positionId) ||
+        sourceRank(a) - sourceRank(b) ||
+        ((getPlayerAvg(b.id) ?? -1) - (getPlayerAvg(a.id) ?? -1)),
+      )[0];
+    if (!best) return;
+
+    assignments[positionId] = best.id;
+    lineupPending.delete(best.id);
+    bancoPlayers.delete(best.id);
+    if (positionId === "P") {
+      designatedPitcherId = best.id;
+      if (dhEnabled) delete battingOrders[best.id];
+    }
+    if (!(dhEnabled && positionId === "P") && !battingOrders[best.id]) {
+      battingOrders[best.id] = getNextOpenBattingOrder();
+    }
+    pool.splice(pool.indexOf(best), 1);
+    filled += 1;
+  });
+
+  if (!filled) {
+    undoStack.length = undoLenBefore;
+    updateUndoButton();
+    showToast("Nenhum jogador disponível — marque as tags de posição (P, C, IF, OF, UT)", "warn");
+    return;
+  }
+  compactBattingOrders();
+  render();
+  showToast(
+    filled > 1
+      ? `${filled} posições preenchidas automaticamente`
+      : "1 posição preenchida automaticamente",
+    "success",
+  );
+}
+
+/* ═══ Seleção leve (sem re-render completo) ═══ */
+
+function selectPlayer(playerId) {
+  selectedPlayerId = playerId;
+  document.querySelectorAll(".roster-player").forEach((el) => {
+    el.classList.toggle("is-selected", el.dataset.playerId === playerId);
+  });
+  renderSelectedPlayer();
+  updateSuggestedSlots();
+}
+
+function updateSuggestedSlots(playerId = selectedPlayerId) {
+  if (PAGE !== "lineup") return;
+  const player = getPlayer(playerId);
+  document.querySelectorAll("#fieldSlots .field-slot").forEach((slot) => {
+    const pos = slot.dataset.position;
+    const fits = Boolean(
+      player && pos && pos !== "DH" && !assignments[pos] && playerFitsPosition(player, pos),
+    );
+    slot.classList.toggle("is-suggested", fits);
+  });
+}
+
 function getAssignedPosition(playerId) {
   if (dhEnabled && dhAssignment === playerId) {
     return "DH pelo P";
@@ -474,12 +665,18 @@ function assignSelectedPlayer(positionId) {
 function assignPlayerToPosition(playerId, positionId) {
   if (!playerId) return;
 
+  /* No-op: jogador já está nessa posição */
+  if (positionId === dhPosition.id ? dhAssignment === playerId : assignments[positionId] === playerId) {
+    return;
+  }
+
   /* Pitcher position in DH mode never counts as a batter — skip capacity check */
   if (!isLineupPlayer(playerId) && !(dhEnabled && positionId === "P") && getActiveBatterIds().length >= 9) {
     showToast("Lineup completo — máximo 9 rebatedores", "warn");
     return;
   }
 
+  pushUndoState();
   bancoPlayers.delete(playerId);
   selectedPlayerId = playerId;
 
@@ -553,6 +750,7 @@ function beginDrag(event, playerId) {
   selectedPlayerId = playerId;
   event.currentTarget.classList.add("is-dragging");
   document.body.classList.add("drag-active");
+  updateSuggestedSlots(playerId);
 
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "move";
@@ -567,6 +765,7 @@ function endDrag(event) {
   document.querySelectorAll(".is-drop-hover").forEach((item) => {
     item.classList.remove("is-drop-hover");
   });
+  updateSuggestedSlots();
 }
 
 function getDraggedPlayerId(event) {
@@ -634,6 +833,7 @@ function addToLineup(playerId) {
     showToast("Lineup completo — máximo 9 rebatedores", "warn");
     return;
   }
+  pushUndoState();
   bancoPlayers.delete(playerId);
   lineupPending.add(playerId);
   if (!battingOrders[playerId]) {
@@ -645,12 +845,14 @@ function addToLineup(playerId) {
 
 function addToBanco(playerId) {
   if (!playerId || isLineupPlayer(playerId) || bancoPlayers.has(playerId)) return;
+  pushUndoState();
   bancoPlayers.add(playerId);
   selectedPlayerId = playerId;
   render();
 }
 
 function removeFromBanco(playerId) {
+  if (bancoPlayers.has(playerId)) pushUndoState();
   bancoPlayers.delete(playerId);
   if (selectedPlayerId === playerId) selectedPlayerId = "";
   render();
@@ -691,6 +893,7 @@ function matchesSearch(player, term) {
 }
 
 function removeFromLineup(playerId) {
+  pushUndoState();
   Object.keys(assignments).forEach((key) => {
     if (assignments[key] === playerId) assignments[key] = "";
   });
@@ -705,6 +908,7 @@ function removeFromLineup(playerId) {
 
 function moveLineupPlayerToBanco(playerId) {
   if (!playerId || !isLineupPlayer(playerId)) return;
+  pushUndoState();
   Object.keys(assignments).forEach((key) => {
     if (assignments[key] === playerId) assignments[key] = "";
   });
@@ -719,6 +923,8 @@ function moveLineupPlayerToBanco(playerId) {
 
 function moveAllToBanco() {
   const lineupIds = roster.filter((p) => isLineupPlayer(p.id)).map((p) => p.id);
+  if (!lineupIds.length) return;
+  pushUndoState();
   lineupIds.forEach((id) => {
     Object.keys(assignments).forEach((key) => {
       if (assignments[key] === id) assignments[key] = "";
@@ -832,6 +1038,7 @@ function reorderLineup(draggedId, targetId, insertBefore) {
   const targetIndex = filtered.indexOf(targetId);
   if (targetIndex === -1) return;
 
+  pushUndoState();
   filtered.splice(insertBefore ? targetIndex : targetIndex + 1, 0, draggedId);
   filtered.forEach((id, index) => {
     battingOrders[id] = index + 1;
@@ -984,6 +1191,8 @@ function renderField() {
     }
     fieldSlots.append(dhSlot);
   }
+
+  updateSuggestedSlots();
 }
 
 function renderSelectedPlayer() {
@@ -1032,6 +1241,9 @@ function renderPositionButtons() {
 }
 
 function renderRoster() {
+  /* Preserva o scroll para a lista não "pular" a cada interação */
+  const rosterScroll = playerRoster.scrollTop;
+  const panelScroll = lineupPanel ? lineupPanel.scrollTop : 0;
   playerRoster.innerHTML = "";
   rosterCount.textContent = `${roster.length} players`;
 
@@ -1106,15 +1318,13 @@ function renderRoster() {
         <span class="roster-status">${escapeHtml(getPlayerStatus(player, assignedPosition))}</span>
         ${canEditOrder ? renderOrderSelect(player) : ""}
       `;
-      card.addEventListener("click", () => {
-        selectedPlayerId = player.id;
-        render();
-      });
+      card.dataset.playerId = player.id;
+      card.addEventListener("click", () => selectPlayer(player.id));
+      card.addEventListener("dblclick", () => smartPlacePlayer(player.id));
       card.addEventListener("keydown", (event) => {
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
-        selectedPlayerId = player.id;
-        render();
+        selectPlayer(player.id);
       });
       card.addEventListener("dragstart", (event) => beginDrag(event, player.id));
       card.addEventListener("dragend", endDrag);
@@ -1133,7 +1343,6 @@ function renderRoster() {
       card.querySelector("img").draggable = false;
 
       if (groupName === "Lineup") {
-        card.dataset.playerId = player.id;
         const toBancoBtn = document.createElement("button");
         toBancoBtn.type = "button";
         toBancoBtn.className = "lineup-to-banco-btn";
@@ -1221,6 +1430,9 @@ function renderRoster() {
 
     playerRoster.append(group);
   });
+
+  playerRoster.scrollTop = rosterScroll;
+  if (lineupPanel) lineupPanel.scrollTop = panelScroll;
 }
 
 function getPitcherBattingOrder() {
@@ -1371,6 +1583,7 @@ function renderOrderSelect(player) {
 function setBattingOrder(playerId, nextOrder) {
   const activeBatterIds = getActiveBatterIds();
   if (!activeBatterIds.includes(playerId)) return;
+  pushUndoState();
   /* Reorder-based approach: always produces unique 1-9 sequence with no collisions */
   const sorted = [...activeBatterIds].sort((a, b) => (battingOrders[a] || 99) - (battingOrders[b] || 99));
   const rest   = sorted.filter((id) => id !== playerId);
@@ -1770,6 +1983,7 @@ function _exportPanel(ctx, offsetX, pw, h) {
 }
 
 function clearFieldPositions() {
+  pushUndoState();
   /* Remember current pitcher before clearing so they stay excluded from batting in DH mode */
   if (dhEnabled) designatedPitcherId = assignments.P || designatedPitcherId;
   Object.entries(assignments).forEach(([, playerId]) => {
@@ -1806,6 +2020,7 @@ if (PAGE === "lineup") {
   });
 
   clearButton.addEventListener("click", () => {
+    pushUndoState();
     assignments = buildEmptyAssignments();
     dhAssignment = "";
     designatedPitcherId = "";
@@ -1818,6 +2033,7 @@ if (PAGE === "lineup") {
   clearPositionsButton?.addEventListener("click", clearFieldPositions);
 
   resetButton.addEventListener("click", () => {
+    pushUndoState();
     assignments = buildInitialAssignments();
     battingOrders = buildInitialBattingOrders();
     dhAssignment = "";
@@ -1834,12 +2050,16 @@ if (PAGE === "lineup") {
   drawerClose?.addEventListener("click", () => setLineupPanelCollapsed(true));
 
   noDhMode.addEventListener("click", () => {
+    if (!dhEnabled) return;
+    pushUndoState();
     dhEnabled = false;
     dhAssignment = "";
     render();
   });
 
   dhMode.addEventListener("click", () => {
+    if (dhEnabled) return;
+    pushUndoState();
     dhEnabled = true;
     render();
   });
@@ -1859,6 +2079,20 @@ if (PAGE === "lineup") {
   selectedPlayer.addEventListener("dragend", endDrag);
 
   document.querySelector("#moveAllToBanco")?.addEventListener("click", moveAllToBanco);
+
+  document.querySelector("#undoLineup")?.addEventListener("click", undoLineupChange);
+  document.querySelector("#autoFill")?.addEventListener("click", autoFillPositions);
+
+  /* Ctrl+Z desfaz a última alteração do lineup */
+  document.addEventListener("keydown", (event) => {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== "z") return;
+    const tag = document.activeElement?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+    event.preventDefault();
+    undoLineupChange();
+  });
+
+  updateUndoButton();
 
   document.querySelector("#addPlayerToggle")?.addEventListener("click", () => {
     const panel = document.querySelector("#addPlayerPanel");

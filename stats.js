@@ -572,11 +572,18 @@ function renderStatsPage() {
       all[id][field] = val;
 
       /* AVG uses official at-bats: total AB minus BB. */
-      const currentH  = field === "h"  ? val : (all[id].h  || 0);
+      let currentH  = field === "h"  ? val : (all[id].h  || 0);
       const currentAb = field === "ab" ? val : (all[id].ab || 0);
       const currentBb = field === "bb" ? val : (all[id].bb || 0);
       const currentHbp = field === "hbp" ? val : (all[id].hbp || 0);
       const currentHr = field === "hr" ? val : (all[id].hr || 0);
+      /* HR também é hit: ao digitar um HR acima do H atual, o H sobe junto
+         para o home run contar no AVG automaticamente */
+      if (field === "hr" && currentHr > currentH) {
+        currentH = currentHr;
+        all[id].h = currentH;
+        hInput.value = currentH;
+      }
       const officialAb = _officialAtBats(currentAb, currentBb, currentHbp);
       [bbInput, hbpInput, hInput, hrInput].forEach((input) => {
         input.classList.remove("stats-input-invalid");
