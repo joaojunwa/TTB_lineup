@@ -10,9 +10,10 @@ const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
 const AVG_QUALIFYING_APPEARANCES = 4;
-/* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 5).
-   Assim AVG 1.000 em 4 AB (score .444) fica abaixo de .800 em 7 AB (score .467) */
-const AVG_CONFIDENCE_WEIGHT = 5;
+/* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 6).
+   Assim AVG 1.000 em 4 AB (score .400) fica abaixo de .750 em 7 AB (score .404) —
+   bater tudo em poucos AB não convence mais que um AVG bom sustentado */
+const AVG_CONFIDENCE_WEIGHT = 6;
 
 const STAT_SOURCE_CONFIG = {
   game: {
