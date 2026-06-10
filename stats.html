@@ -70,12 +70,12 @@
                   <th class="stats-th-rank">#</th>
                   <th class="stats-th-player">Jogador</th>
                   <th class="stats-th-num" title="Aparições no bastão — o AVG desconta BB e HBP automaticamente">AB</th>
-                  <th class="stats-th-num" title="Hits — acertos (inclui home runs)">H</th>
-                  <th class="stats-th-num" title="Home Runs — contam como hit, então somam no H e no AVG">HR</th>
+                  <th class="stats-th-num" title="Hits — rebatidas válidas, sem contar os home runs">H</th>
+                  <th class="stats-th-num" title="Home Runs — somam junto com H no AVG">HR</th>
                   <th class="stats-th-num" title="Bases on Balls — caminhadas (walk)">BB</th>
                   <th class="stats-th-num" title="Hit by Pitch — dead ball">HBP</th>
                   <th class="stats-th-num" title="Strikeouts — ponchados">K</th>
-                  <th class="stats-th-avg" title="Batting Average — média de rebatidas (H ÷ AB oficial)">AVG</th>
+                  <th class="stats-th-avg" title="Batting Average — (H + HR) ÷ (AB − BB − HBP)">AVG</th>
                 </tr>
               </thead>
               <tbody id="statsBody"></tbody>
@@ -92,13 +92,13 @@
               </thead>
               <tbody>
                 <tr><td>AB</td><td>Aparições totais digitadas.</td></tr>
-                <tr><td>H</td><td>Rebatidas válidas (inclui HR).</td></tr>
-                <tr><td>HR</td><td>Home runs — contam como hit: ao digitar, somam no H e entram no AVG.</td></tr>
+                <tr><td>H</td><td>Rebatidas válidas, sem contar os HR.</td></tr>
+                <tr><td>HR</td><td>Home runs — somam junto com H no AVG.</td></tr>
                 <tr><td>BB</td><td>Walks; não entram no AB oficial.</td></tr>
                 <tr><td>HBP</td><td>Dead ball; não entra no AB oficial.</td></tr>
                 <tr><td>K</td><td>Strikeouts.</td></tr>
-                <tr><td>AVG</td><td>H ÷ (AB - BB - HBP).</td></tr>
-                <tr><td>Mín.</td><td>4 AB para entrar no ranking; depois ordena por mais AB e AVG.</td></tr>
+                <tr><td>AVG</td><td>(H + HR) ÷ (AB - BB - HBP).</td></tr>
+                <tr><td>Mín.</td><td>4 AB para entrar no ranking; empate de AVG: mais AB primeiro, depois HR.</td></tr>
               </tbody>
             </table>
           </aside>
@@ -107,7 +107,7 @@
     </main>
 
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=20"></script>
-    <script src="stats.js?v=20"></script>
+    <script src="app.js?v=21"></script>
+    <script src="stats.js?v=21"></script>
   </body>
 </html>

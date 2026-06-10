@@ -59,7 +59,8 @@ function getPlayerAvg(playerId) {
     const s = stats[playerId];
     const officialAb = getOfficialAtBats(s);
     if (!s || !officialAb) return null;
-    return s.h / officialAb;
+    /* H e HR são colunas separadas na página Stats: hits totais = h + hr */
+    return Math.min(((s.h || 0) + (s.hr || 0)) / officialAb, 1);
   } catch (_) {
     return null;
   }

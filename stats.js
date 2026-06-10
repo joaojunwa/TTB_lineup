@@ -292,20 +292,26 @@ function _officialAtBats(ab, bb, hbp = 0) {
   return Math.max(0, (Number(ab) || 0) - (Number(bb) || 0) - (Number(hbp) || 0));
 }
 
-function _calcAvg(h, ab, bb = 0, hbp = 0) {
-  const officialAb = _officialAtBats(ab, bb, hbp);
-  if (!officialAb || officialAb <= 0 || h < 0) return null;
-  return Math.min(h / officialAb, 1); /* cap at 1.000 if data error */
+/* H e HR são colunas separadas: hits totais = H + HR */
+function _totalHits(h, hr = 0) {
+  return (Number(h) || 0) + (Number(hr) || 0);
 }
 
-function _fmtAvg(h, ab, bb = 0, hbp = 0) {
-  const avg = _calcAvg(h, ab, bb, hbp);
+function _calcAvg(h, ab, bb = 0, hbp = 0, hr = 0) {
+  const officialAb = _officialAtBats(ab, bb, hbp);
+  const hits = _totalHits(h, hr);
+  if (!officialAb || officialAb <= 0 || hits < 0) return null;
+  return Math.min(hits / officialAb, 1); /* cap at 1.000 if data error */
+}
+
+function _fmtAvg(h, ab, bb = 0, hbp = 0, hr = 0) {
+  const avg = _calcAvg(h, ab, bb, hbp, hr);
   if (avg === null) return "—";
   return avg.toFixed(3).replace(/^0/, "");
 }
 
-function _avgClass(h, ab, bb = 0, hbp = 0) {
-  const avg = _calcAvg(h, ab, bb, hbp);
+function _avgClass(h, ab, bb = 0, hbp = 0, hr = 0) {
+  const avg = _calcAvg(h, ab, bb, hbp, hr);
   if (avg === null)  return "stats-avg-none";
   if (avg >= 0.400)  return "stats-avg-elite";
   if (avg >= 0.300)  return "stats-avg-good";
@@ -359,25 +365,26 @@ function _sortPlayers(players, stats) {
     const sb = stats[b.id] || { h: 0, ab: 0 };
 
     if (_statsSort === "avg") {
-      const aa = _calcAvg(sa.h, sa.ab, sa.bb, sa.hbp);
-      const ba = _calcAvg(sb.h, sb.ab, sb.bb, sb.hbp);
+      const aa = _calcAvg(sa.h, sa.ab, sa.bb, sa.hbp, sa.hr);
+      const ba = _calcAvg(sb.h, sb.ab, sb.bb, sb.hbp, sb.hr);
       const officialAa = _officialAtBats(sa.ab, sa.bb, sa.hbp);
       const officialBa = _officialAtBats(sb.ab, sb.bb, sb.hbp);
       const appearancesA = Number(sa.ab) || 0;
       const appearancesB = Number(sb.ab) || 0;
       const qualifiedA = appearancesA >= AVG_QUALIFYING_APPEARANCES;
       const qualifiedB = appearancesB >= AVG_QUALIFYING_APPEARANCES;
-      if (aa === null && ba === null) return (sb.h || 0) - (sa.h || 0);
+      if (aa === null && ba === null) return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
       if (aa === null) return 1;
       if (ba === null) return -1;
       if (qualifiedA !== qualifiedB) return qualifiedB ? 1 : -1;
       if (Math.abs(ba - aa) > 1e-9) return ba - aa;
-      if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
+      /* AVG igual: mais AB primeiro, depois HR, depois hits totais */
       if (appearancesB !== appearancesA) return appearancesB - appearancesA;
+      if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
       if (officialBa !== officialAa) return officialBa - officialAa;
-      return (sb.h || 0) - (sa.h || 0);
+      return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
     }
-    if (_statsSort === "hits") return (sb.h || 0) - (sa.h || 0);
+    if (_statsSort === "hits") return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
     if (_statsSort === "hr")   return (sb.hr || 0) - (sa.hr || 0);
     if (_statsSort === "ab")   return (sb.ab || 0) - (sa.ab || 0);
     return a.name.localeCompare(b.name, "pt-BR");
@@ -554,9 +561,9 @@ function renderStatsPage() {
 
     /* AVG cell */
     const tdAvg = document.createElement("td");
-    tdAvg.className = `stats-td-avg ${_avgClass(s.h, s.ab, s.bb, s.hbp)}`;
+    tdAvg.className = `stats-td-avg ${_avgClass(s.h, s.ab, s.bb, s.hbp, s.hr)}`;
     tdAvg.dataset.avgFor = id;
-    tdAvg.textContent = _fmtAvg(s.h, s.ab, s.bb, s.hbp);
+    tdAvg.textContent = _fmtAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
 
     tr.append(tdRank, tdPlayer, tdAb, tdH, tdHr, tdBb, tdHbp, tdK, tdAvg);
     tbody.append(tr);
@@ -571,19 +578,12 @@ function renderStatsPage() {
       if (!all[id]) all[id] = _normalizeStat(s);
       all[id][field] = val;
 
-      /* AVG uses official at-bats: total AB minus BB. */
-      let currentH  = field === "h"  ? val : (all[id].h  || 0);
+      /* AVG = (H + HR) ÷ AB oficial (AB - BB - HBP). H não inclui o HR. */
+      const currentH  = field === "h"  ? val : (all[id].h  || 0);
       const currentAb = field === "ab" ? val : (all[id].ab || 0);
       const currentBb = field === "bb" ? val : (all[id].bb || 0);
       const currentHbp = field === "hbp" ? val : (all[id].hbp || 0);
       const currentHr = field === "hr" ? val : (all[id].hr || 0);
-      /* HR também é hit: ao digitar um HR acima do H atual, o H sobe junto
-         para o home run contar no AVG automaticamente */
-      if (field === "hr" && currentHr > currentH) {
-        currentH = currentHr;
-        all[id].h = currentH;
-        hInput.value = currentH;
-      }
       const officialAb = _officialAtBats(currentAb, currentBb, currentHbp);
       [bbInput, hbpInput, hInput, hrInput].forEach((input) => {
         input.classList.remove("stats-input-invalid");
@@ -594,12 +594,11 @@ function renderStatsPage() {
         hbpInput.classList.add("stats-input-invalid");
         bbInput.title = "BB + HBP nao pode ser maior que AB";
         hbpInput.title = "BB + HBP nao pode ser maior que AB";
-      } else if (currentH > officialAb) {
+      } else if (currentH + currentHr > officialAb) {
         hInput.classList.add("stats-input-invalid");
-        hInput.title = "Hits nao pode ser maior que AB menos BB e HBP";
-      } else if (currentHr > currentH) {
         hrInput.classList.add("stats-input-invalid");
-        hrInput.title = "Home runs nao pode ser maior que Hits";
+        hInput.title = "H + HR nao pode ser maior que AB menos BB e HBP";
+        hrInput.title = "H + HR nao pode ser maior que AB menos BB e HBP";
       } else {
         all[id].h  = currentH;
         all[id].ab = currentAb;
@@ -610,8 +609,8 @@ function renderStatsPage() {
       }
 
       /* Update AVG in place */
-      tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab, all[id].bb, all[id].hbp);
-      tdAvg.className = `stats-td-avg ${_avgClass(all[id].h, all[id].ab, all[id].bb, all[id].hbp)}`;
+      tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab, all[id].bb, all[id].hbp, all[id].hr);
+      tdAvg.className = `stats-td-avg ${_avgClass(all[id].h, all[id].ab, all[id].bb, all[id].hbp, all[id].hr)}`;
       _scheduleResort();
     }
 
@@ -650,8 +649,8 @@ function renderStatsPage() {
     tdTotalK.className = "stats-td-num";
     tdTotalK.textContent = teamK;
     const tdTotalAvg = document.createElement("td");
-    tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb, teamBb, teamHbp)}`;
-    tdTotalAvg.textContent = _fmtAvg(teamH, teamAb, teamBb, teamHbp);
+    tdTotalAvg.className = `stats-td-avg ${_avgClass(teamH, teamAb, teamBb, teamHbp, teamHr)}`;
+    tdTotalAvg.textContent = _fmtAvg(teamH, teamAb, teamBb, teamHbp, teamHr);
     tfootTr.append(tdEmpty, tdLabel, tdTotalAb, tdTotalH, tdTotalHr, tdTotalBb, tdTotalHbp, tdTotalK, tdTotalAvg);
     tbody.append(tfootTr);
   }
