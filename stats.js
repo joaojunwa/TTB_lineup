@@ -697,47 +697,172 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
-/* ─── Export CSV ──────────────────────────────────────── */
+/* ─── Export PNG ──────────────────────────────────────── */
 
-function _exportStatsCSV() {
+function _exportStatsPNG() {
   let players = _buildStatPlayers();
   const useAllSources = !_statsSources.game && !_statsSources.liveBp;
   const gameStats = (useAllSources || _statsSources.game) ? _loadAllStats() : {};
   const liveBpStats = (useAllSources || _statsSources.liveBp) ? _buildLiveBpStats(players) : {};
   const stats = _combineStats(gameStats, liveBpStats);
 
-  /* Só jogadores com stats */
   players = players.filter((p) => _hasStats(stats[p.id]));
   players = _sortPlayers(players, stats);
 
-  const rows = [["#", "Jogador", "Número", "AB", "H", "HR", "BB", "HBP", "K", "AVG"]];
-  players.forEach((p, idx) => {
-    const s = stats[p.id] || _emptyStat();
-    const officialAb = _officialAtBats(s.ab, s.bb, s.hbp);
-    rows.push([
-      idx + 1,
-      p.name,
-      p.number || "",
-      s.ab || 0,
-      s.h  || 0,
-      s.hr || 0,
-      s.bb || 0,
-      s.hbp || 0,
-      s.k  || 0,
-      officialAb > 0 ? _fmtAvg(s.h, s.ab, s.bb, s.hbp, s.hr) : "—",
-    ]);
+  /* ── Layout constants ── */
+  const SCALE   = 2;           /* retina */
+  const PAD     = 28;
+  const ROW_H   = 44;
+  const HEAD_H  = 48;
+  const TITLE_H = 52;
+  const FOOT_H  = 32;
+
+  const COL_RANK   = 36;
+  const COL_NAME   = 160;
+  const COL_NUM    = 54;
+  const COLS = [
+    { label: "#",    w: COL_RANK, align: "center" },
+    { label: "JOGADOR", w: COL_NAME, align: "left"   },
+    { label: "AB",   w: COL_NUM, align: "center" },
+    { label: "H",    w: COL_NUM, align: "center" },
+    { label: "HR",   w: COL_NUM, align: "center" },
+    { label: "BB",   w: COL_NUM, align: "center" },
+    { label: "HBP",  w: COL_NUM, align: "center" },
+    { label: "K",    w: COL_NUM, align: "center" },
+    { label: "AVG",  w: 70,      align: "center" },
+  ];
+
+  const totalW = PAD * 2 + COLS.reduce((s, c) => s + c.w, 0);
+  const totalH = TITLE_H + HEAD_H + ROW_H * players.length + FOOT_H + PAD;
+
+  const canvas = document.createElement("canvas");
+  canvas.width  = totalW * SCALE;
+  canvas.height = totalH * SCALE;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(SCALE, SCALE);
+
+  /* Background */
+  ctx.fillStyle = "#0a1020";
+  ctx.fillRect(0, 0, totalW, totalH);
+
+  /* Title */
+  ctx.fillStyle = "#f6c347";
+  ctx.font = "bold 18px 'Arial', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("TTB Baseball — Stats", PAD, 34);
+  const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  ctx.fillStyle = "#6b7a8d";
+  ctx.font = "12px 'Arial', sans-serif";
+  ctx.textAlign = "right";
+  ctx.fillText(dateStr, totalW - PAD, 34);
+
+  /* Header row */
+  const headY = TITLE_H;
+  ctx.fillStyle = "#111827";
+  ctx.fillRect(PAD, headY, totalW - PAD * 2, HEAD_H);
+
+  let cx = PAD;
+  COLS.forEach((col) => {
+    ctx.fillStyle = "#6b7a8d";
+    ctx.font = "bold 11px 'Arial', sans-serif";
+    ctx.textAlign = col.align === "left" ? "left" : "center";
+    const tx = col.align === "left" ? cx + 8 : cx + col.w / 2;
+    ctx.fillText(col.label, tx, headY + HEAD_H / 2 + 4);
+    cx += col.w;
   });
 
-  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
-  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `ttb-stats-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  /* Separator line under header */
+  ctx.fillStyle = "#1e2d3d";
+  ctx.fillRect(PAD, headY + HEAD_H - 1, totalW - PAD * 2, 1);
+
+  /* Data rows */
+  const avgColors = { elite: "#4de076", good: "#f6c347", ok: "#f0ead8", low: "#d97070", none: "#6b7a8d" };
+  function avgColorFor(h, ab, bb, hbp, hr) {
+    const avg = _calcAvg(h, ab, bb, hbp, hr);
+    if (avg === null)  return avgColors.none;
+    if (avg >= 0.400) return avgColors.elite;
+    if (avg >= 0.300) return avgColors.good;
+    if (avg >= 0.200) return avgColors.ok;
+    return avgColors.low;
+  }
+  const rankColors = ["#f6c347", "#aab4be", "#cd7f32"];
+
+  players.forEach((player, idx) => {
+    const s   = stats[player.id] || _emptyStat();
+    const ry  = TITLE_H + HEAD_H + idx * ROW_H;
+    const mid = ry + ROW_H / 2 + 5;
+
+    /* Alternating row bg */
+    ctx.fillStyle = idx % 2 === 0 ? "#0d1a26" : "#0a1020";
+    ctx.fillRect(PAD, ry, totalW - PAD * 2, ROW_H);
+
+    /* Bottom separator */
+    ctx.fillStyle = "#1a2535";
+    ctx.fillRect(PAD, ry + ROW_H - 1, totalW - PAD * 2, 1);
+
+    const avgStr = _fmtAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
+    const rowData = [
+      { v: `#${idx + 1}`,     col: COLS[0] },
+      { v: player.name,       col: COLS[1] },
+      { v: String(s.ab || 0), col: COLS[2] },
+      { v: String(s.h  || 0), col: COLS[3] },
+      { v: String(s.hr || 0), col: COLS[4] },
+      { v: String(s.bb || 0), col: COLS[5] },
+      { v: String(s.hbp || 0),col: COLS[6] },
+      { v: String(s.k  || 0), col: COLS[7] },
+      { v: avgStr,             col: COLS[8] },
+    ];
+
+    let rx = PAD;
+    rowData.forEach((cell, ci) => {
+      let color = "#f0ead8";
+      let weight = "normal";
+      if (ci === 0) { color = rankColors[idx] || "#6b7a8d"; weight = "bold"; }
+      if (ci === 1) { color = "#f0ead8"; weight = "500"; }
+      if (ci === 8) { color = avgColorFor(s.h, s.ab, s.bb, s.hbp, s.hr); weight = "bold"; }
+
+      ctx.fillStyle = color;
+      ctx.font = `${weight} 13px 'Arial', sans-serif`;
+      ctx.textAlign = cell.col.align === "left" ? "left" : "center";
+      const tx = cell.col.align === "left" ? rx + 8 : rx + cell.col.w / 2;
+
+      /* Truncate name if too long */
+      let text = cell.v;
+      if (ci === 1 && ctx.measureText(text).width > cell.col.w - 12) {
+        while (ctx.measureText(text + "…").width > cell.col.w - 12 && text.length > 0) text = text.slice(0, -1);
+        text += "…";
+      }
+      ctx.fillText(text, tx, mid);
+
+      /* Player number under name */
+      if (ci === 1 && player.number) {
+        ctx.fillStyle = "#6b7a8d";
+        ctx.font = "11px 'Arial', sans-serif";
+        ctx.fillText(`#${player.number}`, tx, mid + 14);
+      }
+
+      rx += cell.col.w;
+    });
+  });
+
+  /* Footer */
+  const footY = TITLE_H + HEAD_H + ROW_H * players.length + 10;
+  ctx.fillStyle = "#3a4a5a";
+  ctx.font = "11px 'Arial', sans-serif";
+  ctx.textAlign = "left";
+  ctx.fillText("AVG = (H + HR) ÷ (AB − BB − HBP)   •   Mín. 4 AB para ranking", PAD, footY + 18);
+
+  /* Download */
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `ttb-stats-${new Date().toISOString().slice(0, 10)}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }, "image/png");
 }
 
 /* ─── Add Stats Drawer ─────────────────────────────────── */
@@ -896,7 +1021,7 @@ document.addEventListener("DOMContentLoaded", () => {
   _fetchLiveBpStats();
 
   /* Export */
-  document.getElementById("btnExportStats")?.addEventListener("click", _exportStatsCSV);
+  document.getElementById("btnExportStats")?.addEventListener("click", _exportStatsPNG);
 
   /* Add Stats drawer */
   document.getElementById("btnAddStats")?.addEventListener("click", _openAddStatsDrawer);
