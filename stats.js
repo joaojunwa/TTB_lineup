@@ -14,10 +14,6 @@ const AVG_QUALIFYING_APPEARANCES = 4;
    Aumentado para 8 para rebaixar ainda mais AVGs perfeitos com poucos AB.
    Exemplo: 1.000 em 4 AB → score .333; .600 em 13 AB → score .371 (correto) */
 const AVG_CONFIDENCE_WEIGHT = 8;
-/* Penalidade de K no ranking: cada strikeout reduz o score em K_RANK_PENALTY por AB oficial.
-   K é o pior resultado ofensivo (sem contato, sem chance de erro de campo).
-   Valor pequeno para não dominar — só serve como tiebreaker fino. */
-const K_RANK_PENALTY = 0.025;
 
 const STAT_SOURCE_CONFIG = {
   game: {
@@ -367,17 +363,17 @@ let _statsSearch = "";
 let _statsSort   = localStorage.getItem(STATS_SORT_KEY) || "avg";
 let _statsSources = _loadStatsSources();
 
-/* Score do ranking: AVG ponderado pelo AB oficial (sem BB/HBP), com penalidade de K.
-   Usar AB oficial no peso evita que muitos BB inflem o volume e subam o score —
-   BB são resultado do pitcher, não do rebatedor.
-   score = (AVG - kPenalty) × (officialAb ÷ (officialAb + weight)) */
+/* Score do ranking: AVG ponderado pelo "contact AB" (AB oficial - K).
+   K é a pior aparição possível — sem contato, sem chance de hit.
+   O peso de confiança usa só os ABs onde houve contato real.
+   score = AVG × (contactAb ÷ (contactAb + weight)) */
 function _rankScore(s) {
   const avg = _calcAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
   if (avg === null) return null;
   const officialAb = _officialAtBats(Number(s.ab) || 0, s.bb, s.hbp);
-  const k = Number(s.k) || 0;
-  const kPenalty = officialAb > 0 ? (k / officialAb) * K_RANK_PENALTY : 0;
-  return (avg - kPenalty) * (officialAb / (officialAb + AVG_CONFIDENCE_WEIGHT));
+  const k = Math.min(Number(s.k) || 0, officialAb);
+  const contactAb = Math.max(0, officialAb - k);
+  return avg * (contactAb / (contactAb + AVG_CONFIDENCE_WEIGHT));
 }
 
 function _sortPlayers(players, stats) {
@@ -398,13 +394,8 @@ function _sortPlayers(players, stats) {
       if (aa === null) return 1;
       if (ba === null) return -1;
       if (qualifiedA !== qualifiedB) return qualifiedB ? 1 : -1;
-      /* Score com tolerância de 0.005 — diferenças menores que isso entram no tiebreaker */
-      if (Math.abs(ba - aa) > 0.005) return ba - aa;
-      /* Tiebreaker: K rate — quem poncha menos proporcionalmente fica na frente */
-      const kRateA = officialAa > 0 ? (Number(sa.k) || 0) / officialAa : 0;
-      const kRateB = officialBa > 0 ? (Number(sb.k) || 0) / officialBa : 0;
-      if (Math.abs(kRateB - kRateA) > 1e-9) return kRateA - kRateB;
-      /* Demais tiebreakers: mais AB, mais HR, mais hits */
+      if (Math.abs(ba - aa) > 1e-9) return ba - aa;
+      /* Tiebreaker: mais AB, mais HR, mais hits */
       if (appearancesB !== appearancesA) return appearancesB - appearancesA;
       if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
       return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
