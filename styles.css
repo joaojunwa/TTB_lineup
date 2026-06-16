@@ -5233,8 +5233,8 @@ details[open] .historico-summary::before {
 
 /* ── Stats AVG colour variants ── */
 .stats-avg-elite { color: #4de076; }          /* ≥ .400 — green  */
-.stats-avg-good  { color: var(--accent); }    /* ≥ .300 — gold   */
-.stats-avg-ok    { color: #f0ead8; }          /* ≥ .200 — normal */
+.stats-avg-good  { color: #f0ead8; }          /* ≥ .300 — white  */
+.stats-avg-ok    { color: var(--accent); }    /* ≥ .200 — gold   */
 .stats-avg-low   { color: #d97070; }          /* < .200 — red    */
 .stats-avg-none  { color: var(--text-muted); } /* no data         */
 

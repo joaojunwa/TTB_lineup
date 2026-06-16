@@ -776,7 +776,7 @@ function _exportStatsPNG() {
   ctx.fillRect(PAD, headY + HEAD_H - 1, totalW - PAD * 2, 1);
 
   /* Data rows */
-  const avgColors = { elite: "#4de076", good: "#f6c347", ok: "#f0ead8", low: "#d97070", none: "#6b7a8d" };
+  const avgColors = { elite: "#4de076", good: "#f0ead8", ok: "#f6c347", low: "#d97070", none: "#6b7a8d" };
   function avgColorFor(h, ab, bb, hbp, hr) {
     const avg = _calcAvg(h, ab, bb, hbp, hr);
     if (avg === null)  return avgColors.none;
