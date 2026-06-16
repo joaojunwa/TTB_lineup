@@ -367,18 +367,17 @@ let _statsSearch = "";
 let _statsSort   = localStorage.getItem(STATS_SORT_KEY) || "avg";
 let _statsSources = _loadStatsSources();
 
-/* Score do ranking: AVG ponderado pelo volume de AB, com penalidade de K.
-   K é o pior resultado ofensivo possível — penaliza levemente o score.
-   score = (AVG - kPenalty) × (AB ÷ (AB + weight)) */
+/* Score do ranking: AVG ponderado pelo AB oficial (sem BB/HBP), com penalidade de K.
+   Usar AB oficial no peso evita que muitos BB inflem o volume e subam o score —
+   BB são resultado do pitcher, não do rebatedor.
+   score = (AVG - kPenalty) × (officialAb ÷ (officialAb + weight)) */
 function _rankScore(s) {
   const avg = _calcAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
   if (avg === null) return null;
-  const ab = Number(s.ab) || 0;
-  const officialAb = _officialAtBats(ab, s.bb, s.hbp);
+  const officialAb = _officialAtBats(Number(s.ab) || 0, s.bb, s.hbp);
   const k = Number(s.k) || 0;
-  /* Penalidade proporcional: K ÷ AB oficial (taxa de strikeout) × fator */
   const kPenalty = officialAb > 0 ? (k / officialAb) * K_RANK_PENALTY : 0;
-  return (avg - kPenalty) * (ab / (ab + AVG_CONFIDENCE_WEIGHT));
+  return (avg - kPenalty) * (officialAb / (officialAb + AVG_CONFIDENCE_WEIGHT));
 }
 
 function _sortPlayers(players, stats) {
@@ -393,8 +392,8 @@ function _sortPlayers(players, stats) {
       const officialBa = _officialAtBats(sb.ab, sb.bb, sb.hbp);
       const appearancesA = Number(sa.ab) || 0;
       const appearancesB = Number(sb.ab) || 0;
-      const qualifiedA = officialAa >= AVG_QUALIFYING_APPEARANCES;
-      const qualifiedB = officialBa >= AVG_QUALIFYING_APPEARANCES;
+      const qualifiedA = (Number(sa.ab) || 0) >= AVG_QUALIFYING_APPEARANCES;
+      const qualifiedB = (Number(sb.ab) || 0) >= AVG_QUALIFYING_APPEARANCES;
       if (aa === null && ba === null) return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
       if (aa === null) return 1;
       if (ba === null) return -1;
@@ -478,13 +477,11 @@ function renderStatsPage() {
     const s  = stats[player.id] || _emptyStat();
     const id = player.id;
     const hasData = _hasStats(s);
-    const officialAbPlayer = _officialAtBats(s.ab, s.bb, s.hbp);
-    const qualified = officialAbPlayer >= AVG_QUALIFYING_APPEARANCES;
+    const qualified = (Number(s.ab) || 0) >= AVG_QUALIFYING_APPEARANCES;
     const rank = (_statsSort === "avg" || _statsSort === "hits" || _statsSort === "hr" || _statsSort === "ab") && qualified ? idx + 1 : null;
 
     const tr = document.createElement("tr");
     tr.className = "stats-row";
-    if (!qualified && hasData) tr.classList.add("stats-row-unqualified");
     tr.dataset.playerId = id;
 
     /* Rank cell */
