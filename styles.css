@@ -5298,6 +5298,23 @@ details[open] .historico-summary::before {
   }
 }
 
+/* ── Export Button ── */
+.stats-export-btn {
+  background: rgba(255,255,255,0.07);
+  color: #f0ead8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+.stats-export-btn:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); }
+
 /* ── Add Stats Button ── */
 .stats-add-btn {
   background: var(--accent);

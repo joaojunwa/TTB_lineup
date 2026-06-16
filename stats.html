@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stats — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=21" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -60,6 +60,7 @@
               <span>Live BP</span>
             </label>
           </div>
+          <button id="btnExportStats" class="stats-export-btn" type="button" title="Exportar tabela como CSV">↓ Exportar</button>
           <button id="btnAddStats" class="stats-add-btn" type="button">+ Adicionar Stats</button>
         </div>
 
@@ -132,7 +133,7 @@
                 <tr><td>HBP</td><td>Dead ball; não entra no AB oficial.</td></tr>
                 <tr><td>K</td><td>Strikeouts.</td></tr>
                 <tr><td>AVG</td><td>(H + HR) ÷ (AB - BB - HBP).</td></tr>
-                <tr><td>Rank</td><td>AVG ponderado pelo volume de AB: 1.000 em 4 AB fica abaixo de .750 em 7 AB. Empate: mais AB, depois HR.</td></tr>
+                <tr><td>Rank</td><td>AVG ponderado pelo volume de AB e penalizado por K: 1.000 em 4 AB fica abaixo de .750 em 7 AB. K (strikeout) penaliza levemente — é o pior resultado ofensivo, sem contato. Empate: mais AB, depois HR.</td></tr>
                 <tr><td>Mín.</td><td>4 AB para entrar no ranking.</td></tr>
               </tbody>
             </table>
@@ -143,6 +144,6 @@
 
     <script src="lineup-data.js?v=5"></script>
     <script src="app.js?v=21"></script>
-    <script src="stats.js?v=24"></script>
+    <script src="stats.js?v=25"></script>
   </body>
 </html>

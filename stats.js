@@ -10,10 +10,14 @@ const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
 const AVG_QUALIFYING_APPEARANCES = 4;
-/* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 6).
-   Assim AVG 1.000 em 4 AB (score .400) fica abaixo de .750 em 7 AB (score .404) —
-   bater tudo em poucos AB não convence mais que um AVG bom sustentado */
-const AVG_CONFIDENCE_WEIGHT = 6;
+/* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 8).
+   Aumentado para 8 para rebaixar ainda mais AVGs perfeitos com poucos AB.
+   Exemplo: 1.000 em 4 AB → score .333; .600 em 13 AB → score .371 (correto) */
+const AVG_CONFIDENCE_WEIGHT = 8;
+/* Penalidade de K no ranking: cada strikeout reduz o score em K_RANK_PENALTY por AB oficial.
+   K é o pior resultado ofensivo (sem contato, sem chance de erro de campo).
+   Valor pequeno para não dominar — só serve como tiebreaker fino. */
+const K_RANK_PENALTY = 0.025;
 
 const STAT_SOURCE_CONFIG = {
   game: {
@@ -363,13 +367,18 @@ let _statsSearch = "";
 let _statsSort   = localStorage.getItem(STATS_SORT_KEY) || "avg";
 let _statsSources = _loadStatsSources();
 
-/* Score do ranking: AVG ponderado pelo volume de AB — AVG perfeito em
-   poucos AB não passa um AVG bom sustentado em mais AB */
+/* Score do ranking: AVG ponderado pelo volume de AB, com penalidade de K.
+   K é o pior resultado ofensivo possível — penaliza levemente o score.
+   score = (AVG - kPenalty) × (AB ÷ (AB + weight)) */
 function _rankScore(s) {
   const avg = _calcAvg(s.h, s.ab, s.bb, s.hbp, s.hr);
   if (avg === null) return null;
   const ab = Number(s.ab) || 0;
-  return avg * (ab / (ab + AVG_CONFIDENCE_WEIGHT));
+  const officialAb = _officialAtBats(ab, s.bb, s.hbp);
+  const k = Number(s.k) || 0;
+  /* Penalidade proporcional: K ÷ AB oficial (taxa de strikeout) × fator */
+  const kPenalty = officialAb > 0 ? (k / officialAb) * K_RANK_PENALTY : 0;
+  return (avg - kPenalty) * (ab / (ab + AVG_CONFIDENCE_WEIGHT));
 }
 
 function _sortPlayers(players, stats) {
@@ -390,11 +399,15 @@ function _sortPlayers(players, stats) {
       if (aa === null) return 1;
       if (ba === null) return -1;
       if (qualifiedA !== qualifiedB) return qualifiedB ? 1 : -1;
-      if (Math.abs(ba - aa) > 1e-9) return ba - aa;
-      /* Score igual: mais AB primeiro, depois HR, depois hits totais */
+      /* Score com tolerância de 0.005 — diferenças menores que isso entram no tiebreaker */
+      if (Math.abs(ba - aa) > 0.005) return ba - aa;
+      /* Tiebreaker: K rate — quem poncha menos proporcionalmente fica na frente */
+      const kRateA = officialAa > 0 ? (Number(sa.k) || 0) / officialAa : 0;
+      const kRateB = officialBa > 0 ? (Number(sb.k) || 0) / officialBa : 0;
+      if (Math.abs(kRateB - kRateA) > 1e-9) return kRateA - kRateB;
+      /* Demais tiebreakers: mais AB, mais HR, mais hits */
       if (appearancesB !== appearancesA) return appearancesB - appearancesA;
       if ((sb.hr || 0) !== (sa.hr || 0)) return (sb.hr || 0) - (sa.hr || 0);
-      if (officialBa !== officialAa) return officialBa - officialAa;
       return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
     }
     if (_statsSort === "hits") return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
@@ -684,6 +697,49 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
+/* ─── Export CSV ──────────────────────────────────────── */
+
+function _exportStatsCSV() {
+  let players = _buildStatPlayers();
+  const useAllSources = !_statsSources.game && !_statsSources.liveBp;
+  const gameStats = (useAllSources || _statsSources.game) ? _loadAllStats() : {};
+  const liveBpStats = (useAllSources || _statsSources.liveBp) ? _buildLiveBpStats(players) : {};
+  const stats = _combineStats(gameStats, liveBpStats);
+
+  /* Só jogadores com stats */
+  players = players.filter((p) => _hasStats(stats[p.id]));
+  players = _sortPlayers(players, stats);
+
+  const rows = [["#", "Jogador", "Número", "AB", "H", "HR", "BB", "HBP", "K", "AVG"]];
+  players.forEach((p, idx) => {
+    const s = stats[p.id] || _emptyStat();
+    const officialAb = _officialAtBats(s.ab, s.bb, s.hbp);
+    rows.push([
+      idx + 1,
+      p.name,
+      p.number || "",
+      s.ab || 0,
+      s.h  || 0,
+      s.hr || 0,
+      s.bb || 0,
+      s.hbp || 0,
+      s.k  || 0,
+      officialAb > 0 ? _fmtAvg(s.h, s.ab, s.bb, s.hbp, s.hr) : "—",
+    ]);
+  });
+
+  const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `ttb-stats-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 /* ─── Add Stats Drawer ─────────────────────────────────── */
 
 let _addStatsDraft = {};
@@ -838,6 +894,9 @@ document.addEventListener("DOMContentLoaded", () => {
   _syncRemoteStats("game");
   _syncRemoteStats("liveBp");
   _fetchLiveBpStats();
+
+  /* Export */
+  document.getElementById("btnExportStats")?.addEventListener("click", _exportStatsCSV);
 
   /* Add Stats drawer */
   document.getElementById("btnAddStats")?.addEventListener("click", _openAddStatsDrawer);
