@@ -5238,6 +5238,9 @@ details[open] .historico-summary::before {
 .stats-avg-low   { color: #d97070; }          /* < .200 — red    */
 .stats-avg-none  { color: var(--text-muted); } /* no data         */
 
+.stats-row-unqualified { opacity: 0.55; }
+.stats-row-unqualified .stats-td-avg { color: var(--text-muted) !important; }
+
 /* ── Stats player cell layout ── */
 .stats-player-info {
   display: flex;

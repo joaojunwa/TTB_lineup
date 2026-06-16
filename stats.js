@@ -393,8 +393,8 @@ function _sortPlayers(players, stats) {
       const officialBa = _officialAtBats(sb.ab, sb.bb, sb.hbp);
       const appearancesA = Number(sa.ab) || 0;
       const appearancesB = Number(sb.ab) || 0;
-      const qualifiedA = appearancesA >= AVG_QUALIFYING_APPEARANCES;
-      const qualifiedB = appearancesB >= AVG_QUALIFYING_APPEARANCES;
+      const qualifiedA = officialAa >= AVG_QUALIFYING_APPEARANCES;
+      const qualifiedB = officialBa >= AVG_QUALIFYING_APPEARANCES;
       if (aa === null && ba === null) return _totalHits(sb.h, sb.hr) - _totalHits(sa.h, sa.hr);
       if (aa === null) return 1;
       if (ba === null) return -1;
@@ -477,11 +477,14 @@ function renderStatsPage() {
   players.forEach((player, idx) => {
     const s  = stats[player.id] || _emptyStat();
     const id = player.id;
-    const rank = _statsSort === "avg" || _statsSort === "hits" || _statsSort === "hr" || _statsSort === "ab" ? idx + 1 : null;
     const hasData = _hasStats(s);
+    const officialAbPlayer = _officialAtBats(s.ab, s.bb, s.hbp);
+    const qualified = officialAbPlayer >= AVG_QUALIFYING_APPEARANCES;
+    const rank = (_statsSort === "avg" || _statsSort === "hits" || _statsSort === "hr" || _statsSort === "ab") && qualified ? idx + 1 : null;
 
     const tr = document.createElement("tr");
     tr.className = "stats-row";
+    if (!qualified && hasData) tr.classList.add("stats-row-unqualified");
     tr.dataset.playerId = id;
 
     /* Rank cell */

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stats — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=23" />
+    <link rel="stylesheet" href="styles.css?v=24" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -134,7 +134,7 @@
                 <tr><td>K</td><td>Strikeouts.</td></tr>
                 <tr><td>AVG</td><td>(H + HR) ÷ (AB - BB - HBP).</td></tr>
                 <tr><td>Rank</td><td>AVG ponderado pelo volume de AB e penalizado por K: 1.000 em 4 AB fica abaixo de .750 em 7 AB. K (strikeout) penaliza levemente — é o pior resultado ofensivo, sem contato. Empate: mais AB, depois HR.</td></tr>
-                <tr><td>Mín.</td><td>4 AB para entrar no ranking.</td></tr>
+                <tr><td>Mín.</td><td>4 AB <em>oficiais</em> (AB − BB − HBP) para entrar no ranking. BB e HBP não contam — são resultado do pitcher, não do rebatedor.</td></tr>
               </tbody>
             </table>
           </aside>
@@ -144,6 +144,6 @@
 
     <script src="lineup-data.js?v=5"></script>
     <script src="app.js?v=21"></script>
-    <script src="stats.js?v=27"></script>
+    <script src="stats.js?v=28"></script>
   </body>
 </html>
