@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Stats — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=19" />
+    <link rel="stylesheet" href="styles.css?v=20" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -60,6 +60,40 @@
               <span>Live BP</span>
             </label>
           </div>
+          <button id="btnAddStats" class="stats-add-btn" type="button">+ Adicionar Stats</button>
+        </div>
+
+        <!-- Add Stats Drawer -->
+        <div id="addStatsDrawer" class="stats-drawer" aria-hidden="true" role="dialog" aria-label="Adicionar estatísticas">
+          <div class="stats-drawer-panel">
+            <div class="stats-drawer-header">
+              <span class="stats-drawer-title">Adicionar Stats</span>
+              <span class="stats-drawer-subtitle">Os valores serão somados ao que já existe</span>
+              <button id="btnCloseAddStats" class="stats-drawer-close" type="button" aria-label="Fechar">×</button>
+            </div>
+            <div class="stats-drawer-body">
+              <div class="stats-drawer-table-wrap">
+                <table class="stats-table stats-drawer-table">
+                  <thead>
+                    <tr>
+                      <th class="stats-th-player">Jogador</th>
+                      <th class="stats-th-num">AB</th>
+                      <th class="stats-th-num">H</th>
+                      <th class="stats-th-num">HR</th>
+                      <th class="stats-th-num">BB</th>
+                      <th class="stats-th-num">HBP</th>
+                      <th class="stats-th-num">K</th>
+                    </tr>
+                  </thead>
+                  <tbody id="addStatsBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="stats-drawer-footer">
+              <button id="btnCancelAddStats" class="stats-drawer-btn stats-drawer-btn-cancel" type="button">Cancelar</button>
+              <button id="btnConfirmAddStats" class="stats-drawer-btn stats-drawer-btn-confirm" type="button">Salvar</button>
+            </div>
+          </div>
         </div>
 
         <div class="stats-content">
@@ -109,6 +143,6 @@
 
     <script src="lineup-data.js?v=5"></script>
     <script src="app.js?v=21"></script>
-    <script src="stats.js?v=23"></script>
+    <script src="stats.js?v=24"></script>
   </body>
 </html>

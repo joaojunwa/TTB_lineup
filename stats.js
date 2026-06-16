@@ -635,6 +635,10 @@ function renderStatsPage() {
     kInput.addEventListener("change", onInputChange);
   });
 
+  /* ── Add Stats button visibility ── */
+  const addBtn = document.getElementById("btnAddStats");
+  if (addBtn) addBtn.hidden = !canEdit;
+
   /* ── Totals row ── */
   if (players.length > 0 && teamAb > 0) {
     const tfootTr = document.createElement("tr");
@@ -680,6 +684,118 @@ function _makeStatInput(label, value, enabled) {
   return input;
 }
 
+/* ─── Add Stats Drawer ─────────────────────────────────── */
+
+let _addStatsDraft = {};
+
+function _openAddStatsDrawer() {
+  const drawer = document.getElementById("addStatsDrawer");
+  if (!drawer) return;
+  _addStatsDraft = {};
+  _renderAddStatsBody();
+  drawer.classList.add("is-open");
+  drawer.setAttribute("aria-hidden", "false");
+}
+
+function _closeAddStatsDrawer() {
+  const drawer = document.getElementById("addStatsDrawer");
+  if (!drawer) return;
+  drawer.classList.remove("is-open");
+  drawer.setAttribute("aria-hidden", "true");
+  _addStatsDraft = {};
+}
+
+function _renderAddStatsBody() {
+  const tbody = document.getElementById("addStatsBody");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+  const players = _buildStatPlayers();
+
+  players.forEach((player) => {
+    if (!_addStatsDraft[player.id]) _addStatsDraft[player.id] = {};
+    const draft = _addStatsDraft[player.id];
+    const tr = document.createElement("tr");
+    tr.className = "stats-row";
+
+    const tdPlayer = document.createElement("td");
+    tdPlayer.className = "stats-td-player";
+    const img = document.createElement("img");
+    img.className = "stats-photo";
+    img.alt = "";
+    img.src = player.photo || "";
+    img.addEventListener("error", () => {
+      const initials = encodeURIComponent(
+        String(player.name).trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() ?? "").join("") || "?",
+      );
+      img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' fill='%232b383b'/%3E%3Ctext x='30' y='38' text-anchor='middle' font-family='Arial,sans-serif' font-size='20' font-weight='700' fill='%23f7c948'%3E${initials}%3C/text%3E%3C/svg%3E`;
+    }, { once: true });
+    const nameWrap = document.createElement("span");
+    nameWrap.className = "stats-player-info";
+    const nameSpan = document.createElement("span");
+    nameSpan.className = "stats-name";
+    nameSpan.textContent = player.name;
+    const numSpan = document.createElement("span");
+    numSpan.className = "stats-number";
+    numSpan.textContent = player.number ? `#${player.number}` : "";
+    nameWrap.append(nameSpan, numSpan);
+    tdPlayer.append(img, nameWrap);
+
+    const fields = ["ab", "h", "hr", "bb", "hbp", "k"];
+    const cells = fields.map((field) => {
+      const td = document.createElement("td");
+      td.className = "stats-td-num";
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.value = draft[field] !== undefined ? draft[field] : "";
+      input.placeholder = "0";
+      input.className = "stats-drawer-input";
+      if (draft[field]) input.classList.add("has-value");
+      input.setAttribute("aria-label", `${field.toUpperCase()} de ${player.name}`);
+      input.addEventListener("input", () => {
+        const val = input.value.trim();
+        if (val === "" || val === "0") {
+          delete draft[field];
+          input.classList.remove("has-value");
+        } else {
+          draft[field] = Math.max(0, parseInt(val, 10) || 0);
+          input.classList.add("has-value");
+        }
+      });
+      td.append(input);
+      return td;
+    });
+
+    tr.append(tdPlayer, ...cells);
+    tbody.append(tr);
+  });
+}
+
+function _confirmAddStats() {
+  const editSource =
+    _statsSources.game && !_statsSources.liveBp ? "game" :
+    _statsSources.liveBp && !_statsSources.game ? "liveBp" :
+    "game";
+
+  const all = _loadSourceStats(editSource);
+
+  Object.entries(_addStatsDraft).forEach(([id, delta]) => {
+    const hasAny = Object.values(delta).some((v) => v > 0);
+    if (!hasAny) return;
+    if (!all[id]) all[id] = _emptyStat();
+    all[id].ab  = (all[id].ab  || 0) + (delta.ab  || 0);
+    all[id].h   = (all[id].h   || 0) + (delta.h   || 0);
+    all[id].hr  = (all[id].hr  || 0) + (delta.hr  || 0);
+    all[id].bb  = (all[id].bb  || 0) + (delta.bb  || 0);
+    all[id].hbp = (all[id].hbp || 0) + (delta.hbp || 0);
+    all[id].k   = (all[id].k   || 0) + (delta.k   || 0);
+  });
+
+  _saveSourceStats(editSource, all);
+  _closeAddStatsDrawer();
+  renderStatsPage();
+}
+
 /* ─── Init ───────────────────────────────────────────── */
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -722,6 +838,20 @@ document.addEventListener("DOMContentLoaded", () => {
   _syncRemoteStats("game");
   _syncRemoteStats("liveBp");
   _fetchLiveBpStats();
+
+  /* Add Stats drawer */
+  document.getElementById("btnAddStats")?.addEventListener("click", _openAddStatsDrawer);
+  document.getElementById("btnCloseAddStats")?.addEventListener("click", _closeAddStatsDrawer);
+  document.getElementById("btnCancelAddStats")?.addEventListener("click", _closeAddStatsDrawer);
+  document.getElementById("btnConfirmAddStats")?.addEventListener("click", _confirmAddStats);
+
+  /* ESC fecha o drawer */
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const drawer = document.getElementById("addStatsDrawer");
+      if (drawer?.classList.contains("is-open")) _closeAddStatsDrawer();
+    }
+  });
 
   window.addEventListener("online", () => {
     _syncRemoteStats("game");
