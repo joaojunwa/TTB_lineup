@@ -5409,6 +5409,12 @@ details[open] .historico-summary::before {
   width: 100%;
   min-width: 480px;
 }
+.stats-drawer-table thead th {
+  position: sticky;
+  top: 0;
+  background: #111827;
+  z-index: 1;
+}
 .stats-drawer-footer {
   display: flex;
   gap: 10px;
