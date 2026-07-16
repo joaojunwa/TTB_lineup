@@ -144,30 +144,38 @@ async function _syncRemoteStats(source = "game") {
     const localHasStats = Object.keys(localStats).length > 0;
 
     if (remoteHasStats) {
-      const remoteIsNewer = !localUpdated || !remote.updatedAt || remote.updatedAt >= localUpdated;
-      /* Nunca sobrescrever local se ele tem mais dados — merge em vez disso */
       const localAbTotal  = _statsTotalAb(localStats);
       const remoteAbTotal = _statsTotalAb(remote.stats);
+      const localPlayers  = Object.keys(localStats).length;
+      const remotePlayers = Object.keys(remote?.stats || {}).length;
 
-      if (!localHasStats || (remoteIsNewer && remoteAbTotal >= localAbTotal)) {
-        /* Remoto mais novo e com pelo menos tanto dado quanto o local */
-        _saveSourceStats(source, remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
-        renderStatsPage();
+      /* Local mais novo no timestamp → nunca sobrescrever, empurra para remoto */
+      const localIsNewer = localUpdated && remote.updatedAt && localUpdated > remote.updatedAt;
+      if (localIsNewer) {
+        await _saveRemoteStats(source, localStats, localUpdated);
         return;
       }
 
-      if (remoteIsNewer && remoteAbTotal < localAbTotal) {
-        /* Remoto mais novo no timestamp mas com menos dados — merge: local vence em cada campo */
+      /* Remoto mais novo mas local tem mais dados (jogadores ou AB total) → merge */
+      const localRicher = localHasStats && (localPlayers > remotePlayers || localAbTotal > remoteAbTotal);
+      if (localRicher) {
         const merged = _mergeStats(remote.stats, localStats);
-        const mergedAt = localUpdated || new Date().toISOString();
+        const mergedAt = new Date().toISOString();
         _saveSourceStats(source, merged, { remote: false, touch: false, updatedAt: mergedAt });
         await _saveRemoteStats(source, merged, mergedAt);
         renderStatsPage();
         return;
       }
+
+      /* Remoto mais novo e com dados iguais ou mais completos → aceita remoto */
+      if (!localHasStats || !localUpdated) {
+        _saveSourceStats(source, remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
+        renderStatsPage();
+        return;
+      }
     }
 
-    /* Local mais novo ou remoto vazio — empurra local para o remoto */
+    /* Remoto vazio ou local mais novo — empurra local para o remoto */
     if (localHasStats) {
       await _saveRemoteStats(source, localStats, localUpdated || new Date().toISOString());
     }
