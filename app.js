@@ -1,15 +1,17 @@
 const PAGE = document.documentElement.dataset.page || "lineup";
 
+/* Posições em % do campo (centro do slot), espelhadas em torno do eixo x = 50.
+   Diamante de referência: home (50,86), 1ª (76,60), 2ª (50,34), 3ª (24,60). */
 const positions = [
-  { id: "P", label: "Pitcher", short: "P", x: 56, y: 62 },
-  { id: "C", label: "Catcher", short: "C", x: 52, y: 88 },
-  { id: "1B", label: "Primeira base", short: "1B", x: 82, y: 60 },
-  { id: "2B", label: "Segunda base", short: "2B", x: 68, y: 42 },
-  { id: "3B", label: "Terceira base", short: "3B", x: 18, y: 58 },
-  { id: "SS", label: "Shortstop", short: "SS", x: 36, y: 43 },
-  { id: "LF", label: "Left field", short: "LF", x: 18, y: 16 },
-  { id: "CF", label: "Center field", short: "CF", x: 50, y: 10 },
-  { id: "RF", label: "Right field", short: "RF", x: 78, y: 17 },
+  { id: "P", label: "Pitcher", short: "P", x: 50, y: 61 },
+  { id: "C", label: "Catcher", short: "C", x: 50, y: 93 },
+  { id: "1B", label: "Primeira base", short: "1B", x: 79, y: 54 },
+  { id: "2B", label: "Segunda base", short: "2B", x: 65, y: 40 },
+  { id: "3B", label: "Terceira base", short: "3B", x: 21, y: 54 },
+  { id: "SS", label: "Shortstop", short: "SS", x: 35, y: 40 },
+  { id: "LF", label: "Left field", short: "LF", x: 19, y: 17 },
+  { id: "CF", label: "Center field", short: "CF", x: 50, y: 11 },
+  { id: "RF", label: "Right field", short: "RF", x: 81, y: 17 },
 ];
 
 const dhPosition = { id: "DH", label: "Designated hitter", short: "DH" };

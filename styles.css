@@ -204,15 +204,17 @@ h1 {
     linear-gradient(120deg, #05ad58 0%, #049b50 100%);
 }
 
+/* Terra do infield: caixa centrada em 50% cobrindo o diamante (24..76 / 34..86)
+   com folga uniforme; losango do clip perfeitamente simétrico nos 4 vértices. */
 .infield-skin {
   position: absolute;
   z-index: 1;
-  left: 12%;
-  top: 23%;
-  width: 76%;
+  left: 18%;
+  top: 28%;
+  width: 64%;
   height: 64%;
-  background: radial-gradient(circle at 50% 72%, #c39761 0 58%, transparent 58.3%);
-  clip-path: polygon(50% 18%, 91% 58%, 50% 100%, 9% 58%);
+  background: radial-gradient(circle at 50% 90.6%, #c39761 0 78%, transparent 78.3%);
+  clip-path: polygon(50% 9.4%, 90.6% 50%, 50% 90.6%, 9.4% 50%);
   filter: drop-shadow(0 6px 0 rgba(0, 0, 0, 0.08));
 }
 
@@ -221,7 +223,7 @@ h1 {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: 57%;
+  top: 41%;
   width: 38%;
   height: 38%;
   transform: translateX(-50%) rotate(45deg);
@@ -235,7 +237,7 @@ h1 {
   position: absolute;
   z-index: 2;
   left: 50%;
-  bottom: 6%;
+  bottom: 5.5%;
   width: 17%;
   height: 17%;
   border-radius: 50%;
@@ -243,74 +245,85 @@ h1 {
   transform: translateX(-50%);
 }
 
+/* Faixas de corte da grama: duas camadas espelhadas em 45°/-45° a partir do
+   home, formando um "V" simétrico. Antes eram três camadas em ângulos
+   quebrados (22°, 42°, -24°) que se cruzavam e deixavam o campo torto. */
 .grass-stripe {
   position: absolute;
-  inset: -18%;
-  opacity: 0.09;
+  inset: -25%;
+  opacity: 0.08;
   background: repeating-linear-gradient(
-    22deg,
-    transparent 0 44px,
-    rgba(255, 255, 255, 0.23) 44px 86px
+    45deg,
+    transparent 0 46px,
+    rgba(255, 255, 255, 0.23) 46px 92px
   );
 }
 
 .stripe-two {
-  transform: rotate(42deg);
-  opacity: 0.09;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent 0 46px,
+    rgba(255, 255, 255, 0.23) 46px 92px
+  );
 }
 
+/* Terceira camada removida do visual — mantida oculta para não quebrar o HTML */
 .stripe-three {
-  transform: rotate(-24deg);
-  opacity: 0.07;
+  display: none;
 }
 
+/* Semicírculo real centrado no home plate: raio 46%, base em top+height = 86% */
 .outfield-arc {
   position: absolute;
   z-index: 2;
   left: 50%;
-  top: 19%;
-  width: 80%;
-  height: 54%;
+  top: 40%;
+  width: 92%;
+  height: 46%;
   transform: translateX(-50%);
   border-top: 5px solid rgba(195, 151, 97, 0.88);
   border-radius: 50% 50% 0 0;
 }
 
+/* Quadrado girado 45°: diagonal de 52% → lado 36.77%, centro em (50%, 60%) */
 .infield-diamond {
   position: absolute;
   z-index: 3;
   left: 50%;
-  top: 58%;
-  width: 32%;
+  top: 41.6%;
+  width: 36.77%;
   aspect-ratio: 1;
   transform: translateX(-50%) rotate(45deg);
   border: 3px solid rgba(255, 255, 255, 0.9);
   background: transparent;
 }
 
+/* Todas as linhas partem exatamente do home plate (50%, 86% → bottom 14%) */
 .foul-line,
 .base-path {
   position: absolute;
   z-index: 4;
   left: 50%;
-  bottom: 13%;
+  bottom: 14%;
   height: 4px;
+  margin-bottom: -2px;
   background: rgba(255, 255, 255, 0.92);
   transform-origin: left center;
 }
 
 .foul-left {
-  width: 50%;
+  width: 60%;
   transform: rotate(-135deg);
 }
 
 .foul-right {
-  width: 50%;
+  width: 60%;
   transform: rotate(-45deg);
 }
 
+/* 26% em X e 26% em Y → hipotenusa de 36.77% */
 .base-path {
-  width: 34%;
+  width: 36.77%;
   background: rgba(255, 255, 255, 0.82);
 }
 
@@ -325,8 +338,8 @@ h1 {
 .mound {
   position: absolute;
   z-index: 4;
-  left: 52%;
-  top: 64%;
+  left: 50%;
+  top: 61.3%;
   width: 8.5%;
   aspect-ratio: 1;
   border: 3px solid #0d1520;
@@ -351,19 +364,21 @@ h1 {
   clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
 }
 
+/* Diamante simétrico: home (50,86), 1ª (76,60), 2ª (50,34), 3ª (24,60).
+   Meia-diagonal de 26% em X e em Y — ângulos de 45° reais no container quadrado. */
 .base-first {
   left: 76%;
-  top: 62%;
+  top: 60%;
 }
 
 .base-second {
   left: 50%;
-  top: 39%;
+  top: 34%;
 }
 
 .base-third {
   left: 24%;
-  top: 62%;
+  top: 60%;
 }
 
 .field-slot {
