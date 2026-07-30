@@ -377,6 +377,7 @@ const clearButton = document.querySelector("#clearField");
 const clearPositionsButton = document.querySelector("#clearPositions");
 const resetButton = document.querySelector("#resetLineup");
 const exportButton = document.querySelector("#exportLineup");
+const exportFileNameInput = document.querySelector("#exportFileName");
 
 function buildRoster(lineupPlayers, benchPlayers) {
   const lineupList = lineupPlayers.map((player, index) => ({
@@ -671,8 +672,18 @@ function assignPlayerToPosition(playerId, positionId) {
     return;
   }
 
+  /* Substituição direta (entra alguém de fora no lugar de quem está na posição)
+     não aumenta o número de rebatedores — não deve bater no limite de 9 */
+  const replacesOccupiedSlot =
+    positionId !== dhPosition.id && Boolean(assignments[positionId]);
+
   /* Pitcher position in DH mode never counts as a batter — skip capacity check */
-  if (!isLineupPlayer(playerId) && !(dhEnabled && positionId === "P") && getActiveBatterIds().length >= 9) {
+  if (
+    !isLineupPlayer(playerId) &&
+    !replacesOccupiedSlot &&
+    !(dhEnabled && positionId === "P") &&
+    getActiveBatterIds().length >= 9
+  ) {
     showToast("Lineup completo — máximo 9 rebatedores", "warn");
     return;
   }
@@ -706,9 +717,25 @@ function assignPlayerToPosition(playerId, positionId) {
   const currentPosition = Object.keys(assignments).find((key) => assignments[key] === playerId) ?? null;
   const displacedPlayerId = assignments[positionId] ?? "";
 
+  /* Substituição: quem vem de fora do lineup (banco) toma o lugar do titular,
+     inclusive a vaga dele na ordem de rebatida. O substituído vai pro banco. */
+  const isSubstitution =
+    Boolean(displacedPlayerId) &&
+    !currentPosition &&
+    !lineupPending.has(playerId) &&
+    displacedPlayerId !== playerId;
+
+  const inheritedOrder = isSubstitution ? battingOrders[displacedPlayerId] : undefined;
+
   if (displacedPlayerId) {
     if (currentPosition) {
       assignments[currentPosition] = displacedPlayerId;
+    } else if (isSubstitution) {
+      /* Titular substituído sai da ordem de rebatida e vai para o banco */
+      lineupPending.delete(displacedPlayerId);
+      delete battingOrders[displacedPlayerId];
+      if (dhAssignment === displacedPlayerId) dhAssignment = "";
+      bancoPlayers.add(displacedPlayerId);
     } else {
       lineupPending.add(displacedPlayerId);
       if (!battingOrders[displacedPlayerId]) {
@@ -722,7 +749,10 @@ function assignPlayerToPosition(playerId, positionId) {
   if (dhAssignment === playerId) dhAssignment = "";
   lineupPending.delete(playerId);
 
-  if (!battingOrders[playerId]) {
+  if (inheritedOrder) {
+    /* Entra exatamente na posição de quem saiu */
+    battingOrders[playerId] = inheritedOrder;
+  } else if (!battingOrders[playerId]) {
     battingOrders[playerId] = battingOrders[displacedPlayerId] || getNextOpenBattingOrder();
   }
 
@@ -1670,6 +1700,23 @@ function _canvasTruncate(ctx, text, maxW) {
   return t + "…";
 }
 
+/* Nome do arquivo de export: usa o campo se preenchido, senão o padrão */
+function _exportFileName() {
+  const fallback = "lineup-ttb.png";
+  const raw = (exportFileNameInput?.value ?? "").trim();
+  if (!raw) return fallback;
+
+  /* Remove a extensão .png digitada pelo usuário e caracteres inválidos */
+  const base = raw
+    .replace(/\.png$/i, "")
+    .replace(/[\\/:*?"<>|]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+
+  return base ? `${base}.png` : fallback;
+}
+
 async function exportLineupImage() {
   if (exportButton) {
     exportButton.disabled = true;
@@ -1705,7 +1752,7 @@ async function exportLineupImage() {
       const url  = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href     = url;
-      link.download = "lineup-ttb.png";
+      link.download = _exportFileName();
       link.click();
       URL.revokeObjectURL(url);
     }, "image/png");
@@ -2067,6 +2114,12 @@ if (PAGE === "lineup") {
 
   exportButton.addEventListener("click", () => {
     exportLineupImage();
+  });
+
+  exportFileNameInput?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    if (!exportButton.disabled) exportLineupImage();
   });
 
   selectedPlayer.addEventListener("dragstart", (event) => {

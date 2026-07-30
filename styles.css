@@ -104,6 +104,29 @@ h1 {
   padding: 0 12px;
 }
 
+/* ── Campo de nome do arquivo exportado ── */
+.export-name-input {
+  min-height: 38px;
+  padding: 0 10px;
+  width: 190px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #131d2c;
+  color: #f0ead8;
+  font: inherit;
+  font-size: 0.85rem;
+}
+
+.export-name-input::placeholder {
+  color: rgba(240, 234, 216, 0.45);
+}
+
+.export-name-input:focus {
+  outline: none;
+  border-color: rgba(246, 195, 71, 0.7);
+  background: #1a2638;
+}
+
 .label-short {
   display: none;
 }
@@ -1303,6 +1326,12 @@ textarea {
   .toolbar-actions button {
     min-height: 44px;
     padding: 0 8px;
+  }
+
+  .export-name-input {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 44px;
   }
 
   .simulator,
@@ -4317,7 +4346,8 @@ details[open] .historico-summary::before {
 }
 
 /* ── Modo leitura ao ver lineup de outro jogador ── */
-.is-viewing-other .toolbar-actions button:not(.btn-logout) {
+.is-viewing-other .toolbar-actions button:not(.btn-logout),
+.is-viewing-other .export-name-input {
   display: none !important;
 }
 .is-viewing-other #lineupPanel {
@@ -4379,6 +4409,7 @@ details[open] .historico-summary::before {
 .is-spectator #exportLineup,
 .is-spectator #saveLineup,
 .is-spectator #drawerClose,
+.is-spectator #exportFileName,
 .is-spectator .lineup-remove-btn {
   display: none;
 }
