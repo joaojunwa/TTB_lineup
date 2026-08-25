@@ -33,8 +33,12 @@
           <div>
             <p class="eyebrow">Soft Misto</p>
             <h2 id="mistoTitle">Novo evento</h2>
+            <p class="misto-intro">Defina o valor unitário e registre o consumo de cada participante.</p>
           </div>
-          <input id="mistoEventName" class="misto-event-name" maxlength="60" placeholder="Nome do evento" aria-label="Nome do evento" />
+          <div class="misto-head-actions">
+            <input id="mistoEventName" class="misto-event-name" maxlength="60" placeholder="Nome do evento" aria-label="Nome do evento" />
+            <button id="mistoChoosePlayers" class="misto-choose-players" type="button">Selecionar jogadores</button>
+          </div>
         </header>
 
         <section class="misto-costs" aria-label="Valores por pessoa">
@@ -44,11 +48,12 @@
 
         <section class="misto-summary" aria-label="Resumo financeiro">
           <div><span>Total a pagar</span><strong id="mistoGrandTotal">R$ 0,00</strong></div>
-          <div><span>Pessoas selecionadas</span><strong id="mistoPeopleCount">0</strong></div>
+          <div><span>Participantes</span><strong id="mistoPeopleCount">0</strong></div>
           <small id="mistoSyncStatus">Salvando neste aparelho…</small>
         </section>
 
         <section class="misto-players-section">
+          <div class="misto-table-head"><div><span class="misto-section-title">Controle por jogador</span><small>Quantidade de cada gasto e valor a cobrar.</small></div></div>
           <div class="misto-table-scroll">
             <table class="misto-table">
               <thead><tr><th>Jogador</th><th>Inscrição</th><th>Café</th><th>Almoço</th><th>Alojamento</th><th>HH</th><th>Deve pagar</th></tr></thead>
@@ -56,6 +61,14 @@
             </table>
           </div>
         </section>
+
+        <div id="mistoPlayersDrawer" class="misto-drawer" aria-hidden="true" role="dialog" aria-label="Selecionar jogadores do Misto">
+          <div class="misto-drawer-panel">
+            <div class="misto-drawer-head"><div><strong>Jogadores do Misto</strong><small>Escolha quem participa deste evento</small></div><button id="mistoClosePlayers" type="button" aria-label="Fechar">×</button></div>
+            <div id="mistoPlayerPicker" class="misto-player-picker"></div>
+            <div class="misto-drawer-foot"><button id="mistoDonePlayers" class="misto-choose-players" type="button">Concluir</button></div>
+          </div>
+        </div>
       </section>
     </main>
     <script src="lineup-data.js?v=5"></script>

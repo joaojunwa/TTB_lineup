@@ -5510,9 +5510,13 @@ details[open] .historico-summary::before {
 /* ── Soft Misto ─────────────────────────────────────────── */
 .misto-view { width: min(1120px, 100%); margin: 0 auto; padding: 22px 16px 42px; }
 .misto-head { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.misto-head-actions { display: flex; gap: 8px; align-items: center; }
 .misto-head h2 { margin: 2px 0 0; color: #f0ead8; font-size: 1.55rem; }
+.misto-intro { margin: 5px 0 0; color: var(--text-muted); font-size: .8rem; }
 .misto-event-name { width: min(320px, 100%); padding: 9px 12px; color: #f0ead8; background: rgba(255,255,255,.07); border: 1px solid var(--line); border-radius: 8px; font: inherit; outline: none; }
 .misto-event-name:focus, .misto-cost-field input:focus { border-color: rgba(246,195,71,.6); }
+.misto-choose-players { border: 0; border-radius: 8px; padding: 10px 13px; color: #0a1020; background: var(--accent); font: inherit; font-size: .82rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
+.misto-choose-players:hover { background: #f5d96a; }
 .misto-costs, .misto-summary, .misto-players-section { border: 1px solid var(--line); background: #0a1020; border-radius: 10px; }
 .misto-costs { padding: 14px; }
 .misto-section-title { margin: 0 0 11px; color: var(--text-muted); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
@@ -5527,21 +5531,26 @@ details[open] .historico-summary::before {
 .misto-summary span, .misto-summary small { color: var(--text-muted); font-size: .77rem; }
 .misto-summary strong { color: #4de076; font-size: 1.25rem; }
 .misto-table-scroll { overflow-x: auto; }
+.misto-table-head { display: flex; justify-content: space-between; align-items: center; padding: 15px 16px 10px; }.misto-table-head .misto-section-title { display: block; margin: 0 0 3px; }.misto-table-head small { color: var(--text-muted); font-size: .75rem; }
 .misto-table { width: 100%; min-width: 700px; border-collapse: collapse; }
 .misto-table th { padding: 11px 14px; color: var(--text-muted); font-size: .69rem; letter-spacing: .06em; text-align: center; text-transform: uppercase; background: #111827; }
 .misto-table th:first-child { text-align: left; }
 .misto-table td { padding: 10px 14px; text-align: center; border-top: 1px solid rgba(255,255,255,.06); }
 .misto-table td:first-child { text-align: left; color: #f0ead8; }
 .misto-table td:first-child small { display: block; margin-top: 1px; color: var(--text-muted); font-size: .72rem; }
-.misto-check { display: inline-flex; cursor: pointer; }
-.misto-check input { position: absolute; opacity: 0; }
-.misto-check span { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid #415063; border-radius: 6px; background: rgba(255,255,255,.04); }
-.misto-check input:checked + span { border-color: var(--accent); background: var(--accent); }
-.misto-check input:checked + span::after { content: "✓"; color: #0a1020; font-weight: 900; }
-.misto-check input:focus-visible + span { outline: 2px solid #fff; outline-offset: 2px; }
+.misto-quantity input { width: 58px; padding: 6px 4px; border: 1px solid var(--line); border-radius: 6px; color: #f0ead8; background: rgba(255,255,255,.07); font: inherit; text-align: center; outline: none; }
+.misto-quantity input:focus { border-color: rgba(246,195,71,.65); }
 .misto-player-total { color: #4de076; font-weight: 800; white-space: nowrap; }
+.misto-empty { padding: 28px !important; color: var(--text-muted); text-align: center !important; }
+.misto-drawer { position: fixed; inset: 0; z-index: 900; display: grid; place-items: end; padding: 12px; visibility: hidden; opacity: 0; background: rgba(0,0,0,.55); transition: opacity .18s, visibility .18s; }
+.misto-drawer.is-open { visibility: visible; opacity: 1; }
+.misto-drawer-panel { display: flex; flex-direction: column; width: min(430px, 100%); max-height: min(680px, 92vh); overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: #0d1a26; box-shadow: 0 12px 40px rgba(0,0,0,.45); }
+.misto-drawer-head { display: flex; justify-content: space-between; align-items: start; padding: 16px; border-bottom: 1px solid var(--line); }
+.misto-drawer-head strong { display: block; color: #f0ead8; }.misto-drawer-head small { color: var(--text-muted); font-size: .76rem; }.misto-drawer-head button { border: 0; background: none; color: var(--text-muted); font-size: 1.5rem; line-height: 1; cursor: pointer; }
+.misto-player-picker { overflow-y: auto; padding: 8px 12px; }.misto-picker-player { display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: 0 4px; border-bottom: 1px solid rgba(255,255,255,.06); color: #f0ead8; cursor: pointer; }.misto-picker-player small { display: block; color: var(--text-muted); font-size: .72rem; }.misto-picker-player input { position: absolute; opacity: 0; }.misto-picker-player i { width: 26px; height: 26px; border: 1px solid #415063; border-radius: 7px; }.misto-picker-player input:checked + i { border-color: var(--accent); background: var(--accent); }.misto-picker-player input:checked + i::after { content: "✓"; display: grid; place-items: center; height: 100%; color: #0a1020; font-weight: 900; }.misto-drawer-foot { padding: 13px 16px; border-top: 1px solid var(--line); text-align: right; }
 .is-spectator .misto-view input { pointer-events: none; opacity: .55; }
-@media (max-width: 760px) { .misto-head { align-items: stretch; flex-direction: column; } .misto-event-name { width: 100%; } .misto-cost-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .misto-summary { grid-template-columns: 1fr 1fr; gap: 12px; } .misto-summary small { grid-column: span 2; } }
+@media (max-width: 760px) { .misto-head { align-items: stretch; flex-direction: column; } .misto-head-actions { align-items: stretch; flex-direction: column; } .misto-event-name { width: 100%; } .misto-cost-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .misto-summary { grid-template-columns: 1fr 1fr; gap: 12px; } .misto-summary small { grid-column: span 2; }
+  .misto-table-scroll { overflow: visible; }.misto-table { min-width: 0; display: block; }.misto-table thead { display: none; }.misto-table tbody { display: grid; gap: 10px; padding: 10px; }.misto-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,.025); }.misto-table td { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 48px; padding: 8px 10px; border-top: 1px solid rgba(255,255,255,.06); text-align: right; }.misto-table td::before { content: attr(data-label); color: var(--text-muted); font-size: .68rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }.misto-table .misto-player-name, .misto-table .misto-player-total { grid-column: span 2; }.misto-table .misto-player-name { min-height: 54px; border-top: 0; text-align: left; background: rgba(255,255,255,.035); }.misto-table .misto-player-name::before { display: none; }.misto-table .misto-player-total { color: #4de076; background: rgba(77,224,118,.07); font-size: 1rem; }.misto-table .misto-player-total::before { color: #9edfac; }.misto-table .misto-empty { grid-column: span 2; display: block; }.misto-table .misto-empty::before { display: none; } }
 
 /* ═══════════════════════════════
    TOAST NOTIFICATIONS
