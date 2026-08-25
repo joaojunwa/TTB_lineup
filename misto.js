@@ -59,20 +59,20 @@ function _mistoFinancialSummary() {
 }
 function _mistoExportPNG() {
   const summary = _mistoFinancialSummary();
-  const width = 1000, padding = 54, headerH = 132, orderH = 136, rowH = 48, footerH = 52;
+  const width = 1080, padding = 54, headerH = 132, orderH = 136, rowH = 48, footerH = 52;
   const height = headerH + orderH + Math.max(1, summary.rows.length) * rowH + footerH + padding;
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#080f1e"; ctx.fillRect(0, 0, width, height);
   ctx.fillStyle = "#f6c347"; ctx.font = "700 31px Arial"; ctx.fillText("TTB Baseball — Soft Misto", padding, 52);
   ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(_misto.eventName || "Resumo do evento", padding, 86);
-  ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.fillText(new Date().toLocaleDateString("pt-BR"), width - padding - 90, 52);
+  ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.textAlign = "right"; ctx.fillText(new Date().toLocaleDateString("pt-BR"), width - padding, 52); ctx.textAlign = "left";
   ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`TOTAL A PAGAR  ${_mistoCurrency(summary.total)}`, padding, 116);
   ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, headerH, width - padding * 2, orderH - 18);
   ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
   const orderItems = MISTO_ITEMS.filter((item) => !item.shared);
   orderItems.forEach((item, index) => {
-    const x = padding + 18 + index * 218;
+    const x = padding + 18 + index * 238;
     const quantity = summary.itemCounts[item.id];
     ctx.fillStyle = "#aebbd0"; ctx.font = "600 15px Arial"; ctx.fillText(item.label.toUpperCase(), x, headerH + 59);
     ctx.fillStyle = "#f0ead8"; ctx.font = "700 27px Arial"; ctx.fillText(String(quantity), x, headerH + 93);
@@ -81,7 +81,7 @@ function _mistoExportPNG() {
   let y = headerH + orderH;
   ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
   ctx.fillStyle = "#8190a8"; ctx.font = "700 13px Arial";
-  ctx.fillText("PARTICIPANTE", padding + 16, y + 24); ctx.fillText("CONSUMO", padding + 450, y + 24); ctx.fillText("DEVE PAGAR", width - padding - 150, y + 24);
+  ctx.fillText("PARTICIPANTE", padding + 16, y + 24); ctx.fillText("ITENS", padding + 370, y + 24); ctx.textAlign = "right"; ctx.fillText("DEVE PAGAR", width - padding - 16, y + 24); ctx.textAlign = "left";
   y += 38;
   if (!summary.rows.length) {
     ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, y, width - padding * 2, rowH);
@@ -89,10 +89,15 @@ function _mistoExportPNG() {
   }
   summary.rows.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#0d1727" : "#101c2c"; ctx.fillRect(padding, y, width - padding * 2, rowH);
-    const consumption = MISTO_ITEMS.map((item) => `${item.id === "registration" ? "Inscr." : item.label} ${_mistoQuantity(row.key, item.id)}`).join("  ·  ");
+    const shortLabels = { registration: "Inscr.", breakfast: "Café", lunch: "Almoço", lodging: "Aloj.", happyHour: "HH" };
+    const consumption = MISTO_ITEMS
+      .map((item) => ({ item, quantity: _mistoQuantity(row.key, item.id) }))
+      .filter(({ quantity }) => quantity > 0)
+      .map(({ item, quantity }) => `${shortLabels[item.id]}${quantity > 1 ? ` ×${quantity}` : ""}`)
+      .join("  ·  ") || "—";
     ctx.fillStyle = "#f0ead8"; ctx.font = "600 17px Arial"; ctx.fillText(row.player.name + (row.player.number ? `  #${row.player.number}` : ""), padding + 16, y + 30);
-    ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(consumption, padding + 450, y + 29);
-    ctx.fillStyle = "#4de076"; ctx.font = "700 17px Arial"; ctx.fillText(_mistoCurrency(row.total), width - padding - 150, y + 30);
+    ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(consumption, padding + 370, y + 29);
+    ctx.fillStyle = "#4de076"; ctx.font = "700 17px Arial"; ctx.textAlign = "right"; ctx.fillText(_mistoCurrency(row.total), width - padding - 16, y + 30); ctx.textAlign = "left";
     y += rowH;
   });
   ctx.fillStyle = "#56657d"; ctx.font = "14px Arial"; ctx.fillText("Inscrição total dividida entre quem está marcado na inscrição.", padding, height - 24);
