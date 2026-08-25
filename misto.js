@@ -46,6 +46,58 @@ function _mistoPlayerTotal(key, registrationUnits = _mistoRegistrationUnits()) {
     return sum + (item.shared ? (quantity > 0 && registrationUnits ? value / registrationUnits : 0) : quantity * value);
   }, 0);
 }
+function _mistoFinancialSummary() {
+  const participants = _mistoPlayers().filter(_mistoIsParticipant);
+  const registrationUnits = _mistoRegistrationUnits();
+  const itemCounts = Object.fromEntries(MISTO_ITEMS.map((item) => [item.id, 0]));
+  const rows = participants.map((player) => {
+    const key = _mistoPlayerKey(player);
+    MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
+    return { player, key, total: _mistoPlayerTotal(key, registrationUnits) };
+  });
+  return { participants, itemCounts, rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
+}
+function _mistoExportPNG() {
+  const summary = _mistoFinancialSummary();
+  const width = 1000, padding = 54, headerH = 132, orderH = 136, rowH = 48, footerH = 52;
+  const height = headerH + orderH + Math.max(1, summary.rows.length) * rowH + footerH + padding;
+  const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#080f1e"; ctx.fillRect(0, 0, width, height);
+  ctx.fillStyle = "#f6c347"; ctx.font = "700 31px Arial"; ctx.fillText("TTB Baseball — Soft Misto", padding, 52);
+  ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(_misto.eventName || "Resumo do evento", padding, 86);
+  ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.fillText(new Date().toLocaleDateString("pt-BR"), width - padding - 90, 52);
+  ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`TOTAL A PAGAR  ${_mistoCurrency(summary.total)}`, padding, 116);
+  ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, headerH, width - padding * 2, orderH - 18);
+  ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
+  const orderItems = MISTO_ITEMS.filter((item) => !item.shared);
+  orderItems.forEach((item, index) => {
+    const x = padding + 18 + index * 218;
+    const quantity = summary.itemCounts[item.id];
+    ctx.fillStyle = "#aebbd0"; ctx.font = "600 15px Arial"; ctx.fillText(item.label.toUpperCase(), x, headerH + 59);
+    ctx.fillStyle = "#f0ead8"; ctx.font = "700 27px Arial"; ctx.fillText(String(quantity), x, headerH + 93);
+    ctx.fillStyle = "#8190a8"; ctx.font = "14px Arial"; ctx.fillText(quantity === 1 ? "unidade" : "unidades", x + 29, headerH + 91);
+  });
+  let y = headerH + orderH;
+  ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
+  ctx.fillStyle = "#8190a8"; ctx.font = "700 13px Arial";
+  ctx.fillText("PARTICIPANTE", padding + 16, y + 24); ctx.fillText("CONSUMO", padding + 450, y + 24); ctx.fillText("DEVE PAGAR", width - padding - 150, y + 24);
+  y += 38;
+  if (!summary.rows.length) {
+    ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, y, width - padding * 2, rowH);
+    ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.fillText("Nenhum participante selecionado.", padding + 16, y + 30); y += rowH;
+  }
+  summary.rows.forEach((row, index) => {
+    ctx.fillStyle = index % 2 ? "#0d1727" : "#101c2c"; ctx.fillRect(padding, y, width - padding * 2, rowH);
+    const consumption = MISTO_ITEMS.map((item) => `${item.id === "registration" ? "Inscr." : item.label} ${_mistoQuantity(row.key, item.id)}`).join("  ·  ");
+    ctx.fillStyle = "#f0ead8"; ctx.font = "600 17px Arial"; ctx.fillText(row.player.name + (row.player.number ? `  #${row.player.number}` : ""), padding + 16, y + 30);
+    ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(consumption, padding + 450, y + 29);
+    ctx.fillStyle = "#4de076"; ctx.font = "700 17px Arial"; ctx.fillText(_mistoCurrency(row.total), width - padding - 150, y + 30);
+    y += rowH;
+  });
+  ctx.fillStyle = "#56657d"; ctx.font = "14px Arial"; ctx.fillText("Inscrição total dividida entre quem está marcado na inscrição.", padding, height - 24);
+  const link = document.createElement("a"); link.download = `ttb-misto-${_mistoSlug(_misto.eventName || "resumo") || "resumo"}.png`; link.href = canvas.toDataURL("image/png"); link.click();
+}
 function _mistoSave() {
   const updatedAt = new Date().toISOString();
   localStorage.setItem(MISTO_KEY, JSON.stringify(_misto));
@@ -155,6 +207,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("mistoClosePlayers").addEventListener("click", closePicker);
   document.getElementById("mistoDonePlayers").addEventListener("click", closePicker);
   drawer.addEventListener("click", (event) => { if (event.target === drawer) closePicker(); });
+  document.getElementById("mistoExportPng").addEventListener("click", _mistoExportPNG);
   window.loadCustomPlayers?.();
   document.getElementById("mistoAddPlayer").addEventListener("submit", (event) => {
     event.preventDefault();

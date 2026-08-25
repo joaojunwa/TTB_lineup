@@ -5517,6 +5517,7 @@ details[open] .historico-summary::before {
 .misto-event-name:focus, .misto-cost-field input:focus { border-color: rgba(246,195,71,.6); }
 .misto-choose-players { border: 0; border-radius: 8px; padding: 10px 13px; color: #0a1020; background: var(--accent); font: inherit; font-size: .82rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
 .misto-choose-players:hover { background: #f5d96a; }
+.misto-export-png { border: 1px solid var(--line); border-radius: 8px; padding: 10px 13px; color: #f0ead8; background: rgba(255,255,255,.07); font: inherit; font-size: .82rem; font-weight: 800; cursor: pointer; white-space: nowrap; }.misto-export-png:hover { border-color: rgba(246,195,71,.55); background: rgba(246,195,71,.1); }
 .misto-costs, .misto-summary, .misto-players-section { border: 1px solid var(--line); background: #0a1020; border-radius: 10px; }
 .misto-costs { padding: 14px; }
 .misto-section-title { margin: 0 0 11px; color: var(--text-muted); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
