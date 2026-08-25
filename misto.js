@@ -137,6 +137,13 @@ function _mistoRenderTable() {
     const el = document.querySelector(`[data-cost-total="${item.id}"]`);
     if (el) el.textContent = item.shared ? `${itemCounts[item.id]} ${itemCounts[item.id] === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido` : `${itemCounts[item.id]} ${itemCounts[item.id] === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
   });
+  const orderSummary = document.getElementById("mistoOrderSummary");
+  if (orderSummary) {
+    orderSummary.innerHTML = MISTO_ITEMS.filter((item) => !item.shared).map((item) => {
+      const quantity = itemCounts[item.id];
+      return `<div><span>${item.label}</span><strong>${quantity}</strong><small>${quantity === 1 ? "unidade" : "unidades"}</small></div>`;
+    }).join("");
+  }
 }
 document.addEventListener("DOMContentLoaded", () => {
   if (document.documentElement.dataset.page !== "misto") return;
