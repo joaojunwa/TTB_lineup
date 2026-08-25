@@ -36,13 +36,13 @@ function _mistoQuantity(key, item) {
   return value === true ? 1 : Math.max(0, Math.floor(Number(value) || 0));
 }
 function _mistoRegistrationUnits() {
-  return _mistoPlayers().filter(_mistoIsParticipant).reduce((total, player) => total + _mistoQuantity(_mistoPlayerKey(player), "registration"), 0);
+  return _mistoPlayers().filter((player) => _mistoIsParticipant(player) && _mistoQuantity(_mistoPlayerKey(player), "registration") > 0).length;
 }
 function _mistoPlayerTotal(key, registrationUnits = _mistoRegistrationUnits()) {
   return MISTO_ITEMS.reduce((sum, item) => {
     const quantity = _mistoQuantity(key, item.id);
     const value = _mistoNumber(_misto.costs[item.id]);
-    return sum + (item.shared ? (registrationUnits ? value * quantity / registrationUnits : 0) : quantity * value);
+    return sum + (item.shared ? (quantity > 0 && registrationUnits ? value / registrationUnits : 0) : quantity * value);
   }, 0);
 }
 function _mistoSave() {
@@ -125,10 +125,10 @@ function _mistoRenderTable() {
   participants.forEach((player) => {
     const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key, registrationUnits); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
     if (selected) { grandTotal += total; people++; }
-    MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += _mistoQuantity(key, item.id); });
+    MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" step="1" inputmode="numeric" data-item="${item.id}" value="${_mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td class="misto-player-total" data-label="Deve pagar">${_mistoCurrency(total)}</td>`;
-    tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => { _misto.choices[key] ||= {}; _misto.choices[key][input.dataset.item] = Math.max(0, Math.floor(Number(input.value) || 0)); _mistoSave(); _mistoRenderTable(); })); body.append(tr);
+    tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" ${item.shared ? "max=1" : ""} step="1" inputmode="numeric" data-item="${item.id}" data-shared="${item.shared ? "true" : "false"}" value="${item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td class="misto-player-total" data-label="Deve pagar">${_mistoCurrency(total)}</td>`;
+    tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => { _misto.choices[key] ||= {}; const quantity = Math.max(0, Math.floor(Number(input.value) || 0)); _misto.choices[key][input.dataset.item] = input.dataset.shared === "true" ? Number(quantity > 0) : quantity; _mistoSave(); _mistoRenderTable(); })); body.append(tr);
   });
   document.getElementById("mistoGrandTotal").textContent = _mistoCurrency(grandTotal);
   document.getElementById("mistoPeopleCount").textContent = participants.length;
