@@ -67,7 +67,7 @@ function _mistoExportPNG() {
   ctx.fillStyle = "#f6c347"; ctx.font = "700 31px Arial"; ctx.fillText("TTB Baseball — Soft Misto", padding, 52);
   ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(_misto.eventName || "Resumo do evento", padding, 86);
   ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.textAlign = "right"; ctx.fillText(new Date().toLocaleDateString("pt-BR"), width - padding, 52); ctx.textAlign = "left";
-  ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`TOTAL A PAGAR  ${_mistoCurrency(summary.total)}`, padding, 116);
+  ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`VALOR DA INSCRIÇÃO  ${_mistoCurrency(_misto.costs.registration)}`, padding, 116);
   ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, headerH, width - padding * 2, orderH - 18);
   ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
   const orderItems = MISTO_ITEMS.filter((item) => !item.shared);
@@ -188,7 +188,7 @@ function _mistoRenderTable() {
     tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" ${item.shared ? "max=1" : ""} step="1" inputmode="numeric" data-item="${item.id}" data-shared="${item.shared ? "true" : "false"}" value="${item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td class="misto-player-total" data-label="Deve pagar">${_mistoCurrency(total)}</td>`;
     tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => { _misto.choices[key] ||= {}; const quantity = Math.max(0, Math.floor(Number(input.value) || 0)); _misto.choices[key][input.dataset.item] = input.dataset.shared === "true" ? Number(quantity > 0) : quantity; _mistoSave(); _mistoRenderTable(); })); body.append(tr);
   });
-  document.getElementById("mistoGrandTotal").textContent = _mistoCurrency(grandTotal);
+  document.getElementById("mistoGrandTotal").textContent = _mistoCurrency(_misto.costs.registration);
   document.getElementById("mistoPeopleCount").textContent = participants.length;
   MISTO_ITEMS.forEach((item) => {
     const total = item.shared ? (itemCounts[item.id] ? _mistoNumber(_misto.costs[item.id]) : 0) : itemCounts[item.id] * _mistoNumber(_misto.costs[item.id]);
