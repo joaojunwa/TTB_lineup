@@ -3,7 +3,7 @@ const MISTO_KEY = "ttb_misto_v1";
 const MISTO_UPDATED_KEY = "ttb_misto_updated_at";
 const MISTO_REMOTE_ID = "ttb_misto_global";
 const MISTO_ITEMS = [
-  { id: "registration", label: "Inscrição" },
+  { id: "registration", label: "Inscrição", shared: true },
   { id: "breakfast", label: "Café da manhã" },
   { id: "lunch", label: "Almoço" },
   { id: "lodging", label: "Alojamento" },
@@ -35,7 +35,16 @@ function _mistoQuantity(key, item) {
   const value = _misto.choices?.[key]?.[item];
   return value === true ? 1 : Math.max(0, Math.floor(Number(value) || 0));
 }
-function _mistoPlayerTotal(key) { return MISTO_ITEMS.reduce((sum, item) => sum + (_mistoQuantity(key, item.id) * _mistoNumber(_misto.costs[item.id])), 0); }
+function _mistoRegistrationUnits() {
+  return _mistoPlayers().filter(_mistoIsParticipant).reduce((total, player) => total + _mistoQuantity(_mistoPlayerKey(player), "registration"), 0);
+}
+function _mistoPlayerTotal(key, registrationUnits = _mistoRegistrationUnits()) {
+  return MISTO_ITEMS.reduce((sum, item) => {
+    const quantity = _mistoQuantity(key, item.id);
+    const value = _mistoNumber(_misto.costs[item.id]);
+    return sum + (item.shared ? (registrationUnits ? value * quantity / registrationUnits : 0) : quantity * value);
+  }, 0);
+}
 function _mistoSave() {
   const updatedAt = new Date().toISOString();
   localStorage.setItem(MISTO_KEY, JSON.stringify(_misto));
@@ -78,7 +87,7 @@ function _mistoRender() {
   costs.innerHTML = "";
   MISTO_ITEMS.forEach((item) => {
     const label = document.createElement("label"); label.className = "misto-cost-field";
-    label.innerHTML = `<span>${item.label}</span><div><b>R$</b><input inputmode="decimal" type="number" min="0" step="0.01" value="${_mistoNumber(_misto.costs[item.id])}" aria-label="Valor de ${item.label}" /></div><em data-cost-total="${item.id}">0 pessoas · R$ 0,00</em>`;
+    label.innerHTML = `<span>${item.label}${item.shared ? " (total)" : ""}</span><div><b>R$</b><input inputmode="decimal" type="number" min="0" step="0.01" value="${_mistoNumber(_misto.costs[item.id])}" aria-label="Valor de ${item.label}" /></div><em data-cost-total="${item.id}">${item.shared ? "Dividido entre participantes" : "0 unidades · R$ 0,00"}</em>`;
     label.querySelector("input").addEventListener("input", (event) => { _misto.costs[item.id] = _mistoNumber(event.target.value); _mistoSave(); _mistoRenderTable(); }); costs.append(label);
   });
   _mistoRenderTable();
@@ -91,7 +100,14 @@ function _mistoRenderPlayerPicker() {
     const key = _mistoPlayerKey(player);
     const label = document.createElement("label"); label.className = "misto-picker-player";
     label.innerHTML = `<span><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</span><input type="checkbox" ${_mistoIsParticipant(player) ? "checked" : ""} aria-label="Incluir ${player.name}" /><i></i>`;
-    label.querySelector("input").addEventListener("change", (event) => { _misto.participants[key] = event.target.checked; _mistoSave(); _mistoRenderTable(); });
+    label.querySelector("input").addEventListener("change", (event) => {
+      _misto.participants[key] = event.target.checked;
+      if (event.target.checked && !_mistoQuantity(key, "registration")) {
+        _misto.choices[key] ||= {};
+        _misto.choices[key].registration = 1;
+      }
+      _mistoSave(); _mistoRenderTable();
+    });
     picker.append(label);
   });
 }
@@ -100,13 +116,14 @@ function _mistoRenderTable() {
   let grandTotal = 0, people = 0;
   const itemCounts = Object.fromEntries(MISTO_ITEMS.map((item) => [item.id, 0]));
   const participants = _mistoPlayers().filter(_mistoIsParticipant);
+  const registrationUnits = _mistoRegistrationUnits();
   const chooseBtn = document.getElementById("mistoChoosePlayers");
   if (chooseBtn) chooseBtn.textContent = `Selecionar jogadores (${participants.length})`;
   if (!participants.length) {
     body.innerHTML = `<tr><td class="misto-empty" colspan="7">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
   }
   participants.forEach((player) => {
-    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
+    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key, registrationUnits); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
     if (selected) { grandTotal += total; people++; }
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += _mistoQuantity(key, item.id); });
     const tr = document.createElement("tr");
@@ -116,9 +133,9 @@ function _mistoRenderTable() {
   document.getElementById("mistoGrandTotal").textContent = _mistoCurrency(grandTotal);
   document.getElementById("mistoPeopleCount").textContent = participants.length;
   MISTO_ITEMS.forEach((item) => {
-    const total = itemCounts[item.id] * _mistoNumber(_misto.costs[item.id]);
+    const total = item.shared ? (itemCounts[item.id] ? _mistoNumber(_misto.costs[item.id]) : 0) : itemCounts[item.id] * _mistoNumber(_misto.costs[item.id]);
     const el = document.querySelector(`[data-cost-total="${item.id}"]`);
-    if (el) el.textContent = `${itemCounts[item.id]} ${itemCounts[item.id] === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
+    if (el) el.textContent = item.shared ? `${itemCounts[item.id]} ${itemCounts[item.id] === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido` : `${itemCounts[item.id]} ${itemCounts[item.id] === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
   });
 }
 document.addEventListener("DOMContentLoaded", () => {
