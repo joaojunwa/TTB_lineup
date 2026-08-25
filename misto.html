@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="pt-BR" data-page="misto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Misto — TTB Baseball</title>
+    <link rel="stylesheet" href="styles.css?v=28" />
+    <script src="auth.js?v=4"></script>
+    <script>checkAuth();</script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="toolbar" aria-label="Misto">
+        <div>
+          <p class="eyebrow">TTB Baseball</p>
+          <h1>Misto</h1>
+        </div>
+        <div class="toolbar-center">
+          <nav class="tab-nav" aria-label="Abas">
+            <a class="tab-btn" href="index.html">Lineup</a>
+            <a class="tab-btn" href="status.html">Status</a>
+            <a class="tab-btn" href="status.html?view=history">Histórico</a>
+            <a class="tab-btn tab-btn-teste" href="teste.html">Teste</a>
+            <a class="tab-btn" href="stats.html">Stats</a>
+            <a class="tab-btn is-active" href="misto.html">Misto</a>
+          </nav>
+        </div>
+        <div class="toolbar-actions"><button class="btn-logout" type="button">Sair</button></div>
+      </section>
+
+      <section class="misto-view">
+        <header class="misto-head">
+          <div>
+            <p class="eyebrow">Soft Misto</p>
+            <h2 id="mistoTitle">Novo evento</h2>
+          </div>
+          <input id="mistoEventName" class="misto-event-name" maxlength="60" placeholder="Nome do evento" aria-label="Nome do evento" />
+        </header>
+
+        <section class="misto-costs" aria-label="Valores por pessoa">
+          <p class="misto-section-title">Valores por pessoa</p>
+          <div id="mistoCostFields" class="misto-cost-grid"></div>
+        </section>
+
+        <section class="misto-summary" aria-label="Resumo financeiro">
+          <div><span>Total a pagar</span><strong id="mistoGrandTotal">R$ 0,00</strong></div>
+          <div><span>Pessoas selecionadas</span><strong id="mistoPeopleCount">0</strong></div>
+          <small id="mistoSyncStatus">Salvando neste aparelho…</small>
+        </section>
+
+        <section class="misto-players-section">
+          <div class="misto-table-scroll">
+            <table class="misto-table">
+              <thead><tr><th>Jogador</th><th>Inscrição</th><th>Café</th><th>Almoço</th><th>Alojamento</th><th>HH</th><th>Deve pagar</th></tr></thead>
+              <tbody id="mistoPlayersBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+    <script src="lineup-data.js?v=5"></script>
+    <script src="app.js?v=21"></script>
+    <script src="misto.js?v=1"></script>
+  </body>
+</html>

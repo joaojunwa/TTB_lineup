@@ -9,6 +9,8 @@ const LIVE_BP_CACHE_KEY = "ttb_live_bp_stats_cache";
 const LIVE_BP_STATS_KEY = "ttb_live_bp_player_stats_v1";
 const LIVE_BP_STATS_UPDATED_KEY = "ttb_live_bp_player_stats_updated_at";
 const LIVE_BP_STATS_REMOTE_ID = "ttb_live_bp_player_stats_global";
+const STATS_REFERENCE_RESTORE_ID = "stats-reference-2026-08-04";
+let _statsReferenceRestored = false;
 const AVG_QUALIFYING_APPEARANCES = 4;
 /* Peso do volume de AB no ranking: score = AVG × AB ÷ (AB + 8).
    Aumentado para 8 para rebaixar ainda mais AVGs perfeitos com poucos AB.
@@ -94,12 +96,14 @@ async function _fetchRemoteStats(source = "game") {
   return {
     stats: row.state.stats || {},
     updatedAt: row.updated_at || row.state.updated_at || "",
+    restoreId: row.state.restore_id || "",
   };
 }
 
-async function _saveRemoteStats(source = "game", stats, updatedAt = new Date().toISOString()) {
+async function _saveRemoteStats(source = "game", stats, updatedAt = new Date().toISOString(), restoreId = "") {
   if (!_canUseRemoteStats()) return;
   const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
+  const effectiveRestoreId = restoreId || (source === "game" && _statsReferenceRestored ? STATS_REFERENCE_RESTORE_ID : "");
   const res = await fetch(_remoteStatsUrl("?on_conflict=id"), {
     method: "POST",
     headers: _remoteStatsHeaders({
@@ -108,7 +112,7 @@ async function _saveRemoteStats(source = "game", stats, updatedAt = new Date().t
     }),
     body: JSON.stringify({
       id: config.remoteId,
-      state: { stats, updated_at: updatedAt },
+      state: { stats, updated_at: updatedAt, ...(effectiveRestoreId ? { restore_id: effectiveRestoreId } : {}) },
       updated_at: updatedAt,
     }),
   });
@@ -133,13 +137,53 @@ function _statsTotalAb(stats = {}) {
   return Object.values(stats).reduce((s, p) => s + (p.ab || 0), 0);
 }
 
+/* Restaura a tabela enviada em 04/08/2026 uma única vez no banco online.
+   Os IDs de Bruno e caio são personalizados (levam timestamp), então são
+   reconhecidos pelo fim do ID em vez de serem fixados aqui. */
+function _referenceStatsRestore(current = {}) {
+  const byId = {
+    "lineup-1-kevin-47":     { ab: 18, h: 7, hr: 1, bb: 4, hbp: 2, k: 1 },
+    "lineup-3-thales-31":    { ab: 18, h: 7, hr: 0, bb: 6, hbp: 0, k: 0 },
+    "lineup-7-tutu-buso-35": { ab: 16, h: 6, hr: 0, bb: 5, hbp: 0, k: 1 },
+    "lineup-2-jun-39":       { ab: 15, h: 7, hr: 0, bb: 2, hbp: 0, k: 4 },
+    "lineup-0-mikio-9":      { ab: 12, h: 5, hr: 0, bb: 1, hbp: 1, k: 0 },
+    "bench-2-tiago-4":       { ab: 16, h: 3, hr: 0, bb: 3, hbp: 2, k: 2 },
+    "lineup-5-kenji-67":     { ab: 6,  h: 2, hr: 0, bb: 1, hbp: 0, k: 2 },
+    "bench-0-junka-2":       { ab: 6,  h: 1, hr: 0, bb: 3, hbp: 0, k: 0 },
+    "lineup-4-jamal-36":     { ab: 7,  h: 1, hr: 0, bb: 0, hbp: 0, k: 3 },
+    "bench-1-naoi-6":        { ab: 7,  h: 1, hr: 0, bb: 0, hbp: 3, k: 3 },
+    "lineup-6-liminha-20":   { ab: 5,  h: 0, hr: 0, bb: 4, hbp: 0, k: 2 },
+    "bench-3-piki-23":       { ab: 3,  h: 2, hr: 0, bb: 0, hbp: 0, k: 0 },
+    "bench-6-hamtaro-sn":    { ab: 2,  h: 1, hr: 0, bb: 0, hbp: 0, k: 0 },
+  };
+  const restored = Object.fromEntries(Object.entries(byId).map(([id, stat]) => [id, _normalizeStat(stat)]));
+  Object.keys(current).forEach((id) => {
+    if (/-bruno$/i.test(id)) restored[id] = _normalizeStat({ ab: 6, h: 3, hr: 0, bb: 1, hbp: 0, k: 1 });
+    if (/-caio$/i.test(id))  restored[id] = _normalizeStat({ ab: 9, h: 1, hr: 0, bb: 2, hbp: 0, k: 4 });
+  });
+  return restored;
+}
+
 async function _syncRemoteStats(source = "game") {
   if (!_canUseRemoteStats()) return;
   const config = STAT_SOURCE_CONFIG[source] || STAT_SOURCE_CONFIG.game;
   try {
     const remote = await _fetchRemoteStats(source);
+    if (source === "game" && remote?.restoreId === STATS_REFERENCE_RESTORE_ID) {
+      _statsReferenceRestored = true;
+    }
     const localStats = _loadSourceStats(source);
     const localUpdated = localStorage.getItem(config.updatedKey) || "";
+
+    if (source === "game" && remote?.restoreId !== STATS_REFERENCE_RESTORE_ID) {
+      const restored = _referenceStatsRestore({ ...(remote?.stats || {}), ...localStats });
+      const restoredAt = new Date().toISOString();
+      _saveSourceStats(source, restored, { remote: false, touch: false, updatedAt: restoredAt });
+      _statsReferenceRestored = true;
+      await _saveRemoteStats(source, restored, restoredAt, STATS_REFERENCE_RESTORE_ID);
+      renderStatsPage();
+      return;
+    }
     const remoteHasStats = Object.keys(remote?.stats || {}).length > 0;
     const localHasStats = Object.keys(localStats).length > 0;
 
