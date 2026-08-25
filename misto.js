@@ -30,6 +30,7 @@ function _mistoPlayers() {
   return all.filter((p) => { const key = `${p.name}|${p.number || ""}`; if (seen.has(key)) return false; seen.add(key); return true; });
 }
 function _mistoPlayerKey(player) { return `${player.name}|${player.number || ""}`; }
+function _mistoSlug(value) { return String(value).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, ""); }
 function _mistoIsParticipant(player) { return Boolean(_misto.participants?.[_mistoPlayerKey(player)]); }
 function _mistoQuantity(key, item) {
   const value = _misto.choices?.[key]?.[item];
@@ -154,5 +155,26 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("mistoClosePlayers").addEventListener("click", closePicker);
   document.getElementById("mistoDonePlayers").addEventListener("click", closePicker);
   drawer.addEventListener("click", (event) => { if (event.target === drawer) closePicker(); });
+  window.loadCustomPlayers?.();
+  document.getElementById("mistoAddPlayer").addEventListener("submit", (event) => {
+    event.preventDefault();
+    const nameInput = document.getElementById("mistoNewPlayerName");
+    const numberInput = document.getElementById("mistoNewPlayerNumber");
+    const positionInput = document.getElementById("mistoNewPlayerPosition");
+    const name = nameInput.value.trim();
+    if (!name) return;
+    const number = numberInput.value.trim();
+    const players = (() => { try { return JSON.parse(localStorage.getItem("ttb_custom_players_v1")) || []; } catch (_) { return []; } })();
+    const alreadyExists = _mistoPlayers().some((player) => player.name.trim().toLowerCase() === name.toLowerCase() && String(player.number || "") === number);
+    if (alreadyExists) { nameInput.setCustomValidity("Esse jogador já está no elenco."); nameInput.reportValidity(); nameInput.setCustomValidity(""); return; }
+    const position = positionInput.value.trim();
+    const player = { id: `custom-${Date.now()}-${_mistoSlug(name)}`, name, number, position, photo: "", positionTags: position ? [position] : [] };
+    players.push(player);
+    localStorage.setItem("ttb_custom_players_v1", JSON.stringify(players));
+    window.addSharedCustomPlayer?.(player);
+    nameInput.value = ""; numberInput.value = ""; positionInput.value = "";
+    _mistoRender();
+  });
   _mistoRender(); _mistoLoadRemote();
+  window.loadCustomPlayersRemote?.().then(() => _mistoRender());
 });

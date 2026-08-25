@@ -34,6 +34,7 @@ let designatedPitcherId = "";
 const UNDO_LIMIT = 30;
 let undoStack = [];
 const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
+const CUSTOM_PLAYERS_REMOTE_ID = "ttb_custom_players_global";
 let customPlayers = [];
 const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
 let playerTags = {};
@@ -987,18 +988,71 @@ function loadCustomPlayers() {
   } catch (_) {}
 }
 
+function _applyCustomPlayers(players) {
+  let changed = false;
+  (players || []).forEach((cp) => {
+    if (!cp?.id || !cp?.name || customPlayers.some((player) => player.id === cp.id)) return;
+    customPlayers.push(cp);
+    roster.push({ ...cp, group: "Elenco", battingOrder: "" });
+    changed = true;
+  });
+  if (changed) localStorage.setItem(CUSTOM_PLAYERS_KEY, JSON.stringify(customPlayers));
+  return changed;
+}
+
+async function syncCustomPlayersRemote() {
+  if (typeof AUTH_SUPABASE_URL === "undefined") return;
+  try {
+    const headers = { apikey: AUTH_SUPABASE_KEY, Authorization: `Bearer ${AUTH_SUPABASE_KEY}` };
+    const read = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state&id=eq.${CUSTOM_PLAYERS_REMOTE_ID}`, { headers });
+    if (!read.ok) throw new Error();
+    const remote = (await read.json())[0]?.state?.players || [];
+    const merged = new Map(remote.map((player) => [player.id, player]));
+    customPlayers.forEach((player) => merged.set(player.id, player));
+    const players = [...merged.values()];
+    _applyCustomPlayers(players);
+    const now = new Date().toISOString();
+    const write = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?on_conflict=id`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify({ id: CUSTOM_PLAYERS_REMOTE_ID, state: { players, updated_at: now }, updated_at: now }),
+    });
+    if (!write.ok) throw new Error();
+  } catch (err) { console.warn("Elenco geral em modo local:", err); }
+}
+
+async function loadCustomPlayersRemote() {
+  if (typeof AUTH_SUPABASE_URL === "undefined") return;
+  try {
+    const res = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state&id=eq.${CUSTOM_PLAYERS_REMOTE_ID}`, {
+      headers: { apikey: AUTH_SUPABASE_KEY, Authorization: `Bearer ${AUTH_SUPABASE_KEY}` },
+    });
+    if (!res.ok) throw new Error();
+    const players = (await res.json())[0]?.state?.players || [];
+    if (_applyCustomPlayers(players)) {
+      if (PAGE === "lineup") render();
+      if (PAGE === "status") renderStatus();
+    }
+  } catch (err) { console.warn("Não foi possível carregar o elenco geral:", err); }
+}
+
 function saveCustomPlayers() {
   try {
     localStorage.setItem(CUSTOM_PLAYERS_KEY, JSON.stringify(customPlayers));
   } catch (_) {}
+  syncCustomPlayersRemote();
+}
+
+function addSharedCustomPlayer(player) {
+  if (!_applyCustomPlayers([player])) return false;
+  saveCustomPlayers();
+  return true;
 }
 
 function addCustomPlayer(name, number, positionTags) {
   const id = `custom-${Date.now()}-${slug(name)}`;
   const cp = { id, name, number: String(number || ""), photo: "", positionTags };
-  customPlayers.push(cp);
-  roster.push({ ...cp, group: "Elenco", battingOrder: "" });
-  saveCustomPlayers();
+  addSharedCustomPlayer(cp);
   render();
 }
 
@@ -2189,6 +2243,7 @@ if (PAGE === "lineup") {
 
   loadPlayerTags();
   loadCustomPlayers();
+  loadCustomPlayersRemote();
   loadLineupState();
   render();
 }
@@ -3427,6 +3482,7 @@ if (pitchWrapper && pitchZoneBox) {
 
 if (PAGE === "status") {
   loadCustomPlayers();
+  loadCustomPlayersRemote();
   loadPlayerTags();
   loadLineupState();
   loadOpponentLineup();

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Misto — TTB Baseball</title>
-    <link rel="stylesheet" href="styles.css?v=28" />
+    <link rel="stylesheet" href="styles.css?v=29" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -59,6 +59,12 @@
 
         <section class="misto-players-section">
           <div class="misto-table-head"><div><span class="misto-section-title">Controle por jogador</span><small>Quantidade de cada gasto e valor a cobrar.</small></div></div>
+          <form id="mistoAddPlayer" class="misto-add-player">
+            <input id="mistoNewPlayerName" maxlength="60" placeholder="Nome do jogador *" required aria-label="Nome do jogador" />
+            <input id="mistoNewPlayerNumber" maxlength="12" placeholder="Número" aria-label="Número do jogador" />
+            <input id="mistoNewPlayerPosition" maxlength="30" placeholder="Posição" aria-label="Posição do jogador" />
+            <button type="submit">+ Adicionar ao elenco</button>
+          </form>
           <div class="misto-table-scroll">
             <table class="misto-table">
               <thead><tr><th>Jogador</th><th>Inscrição</th><th>Café</th><th>Almoço</th><th>Alojamento</th><th>HH</th><th>Deve pagar</th></tr></thead>
@@ -77,7 +83,7 @@
       </section>
     </main>
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=22"></script>
     <script src="misto.js?v=1"></script>
   </body>
 </html>
