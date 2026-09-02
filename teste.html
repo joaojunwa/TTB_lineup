@@ -3,16 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Teste — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=19" />
+    <title>Treino — TTB Lineup</title>
+    <link rel="stylesheet" href="styles.css?v=20" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
   <body>
     <main class="app-shell">
-      <section class="toolbar" aria-label="Controles do teste">
+      <section class="toolbar" aria-label="Controles do treino">
         <div>
-          <p class="eyebrow">Baseball Lineup</p>
+          <p class="eyebrow">Baseball / Softball</p>
           <h1>Treino</h1>
         </div>
 
@@ -21,7 +21,7 @@
             <a class="tab-btn" href="index.html">Lineup</a>
             <a class="tab-btn" href="status.html">Status</a>
             <a class="tab-btn" href="status.html?view=history">Histórico</a>
-            <a class="tab-btn tab-btn-teste is-active" href="teste.html">Teste</a>
+            <a class="tab-btn tab-btn-teste is-active" href="teste.html">Treino</a>
             <a class="tab-btn" href="stats.html">Stats</a>
             <a class="tab-btn" href="misto.html">Misto</a>
           </nav>
@@ -33,35 +33,53 @@
       </section>
 
       <section id="testeTab" class="teste-view">
-        <div class="teste-mode-tabs" aria-label="Modos de teste">
-          <button id="testeTreinoTab" class="teste-mode-tab is-active" type="button">Treino</button>
-          <button id="testeSoftballTab" class="teste-mode-tab" type="button">Softball At-Bat</button>
-        </div>
+        <p class="teste-intro">
+          Acompanhe as rebatidas do dia sem gravar nada nos stats oficiais.
+          Serve para amistoso de beisebol ou softball. Os dados ficam salvos
+          neste aparelho até você zerar a sessão.
+        </p>
 
-        <div id="testeTreinoPanel" class="teste-mode-panel">
         <div class="teste-setup">
           <div class="teste-setup-fields">
             <div class="teste-field-group">
-              <label class="teste-label" for="testePitcherInput">Pitcher</label>
+              <label class="teste-label" for="testePitcherInput">Pitcher (opcional)</label>
               <input id="testePitcherInput" class="teste-input" placeholder="Nome do pitcher..." />
             </div>
             <div class="teste-field-group" style="flex:1">
-              <label class="teste-label" for="testeBatterInput">Adicionar rebatedor</label>
+              <label class="teste-label" for="testeBatterInput">Adicionar rebatedor avulso</label>
               <div class="teste-add-row">
                 <input id="testeBatterInput" class="teste-input" placeholder="Nome do rebatedor..." />
                 <button id="testeAddBatter" class="ctrl-btn">+ Adicionar</button>
+                <button id="testeAddFromRoster" class="ctrl-btn ctrl-roster" type="button">Do elenco</button>
               </div>
             </div>
           </div>
           <div class="teste-setup-actions">
-            <button id="testeResetAll" class="ctrl-btn ctrl-reset">Resetar tudo</button>
-            <button id="testeSalvar" class="ctrl-btn ctrl-salvar">Salvar Treino</button>
+            <button id="testeResetAll" class="ctrl-btn ctrl-reset" type="button">Zerar sessão</button>
+            <button id="testeSalvar" class="ctrl-btn ctrl-salvar" type="button">Salvar no banco</button>
           </div>
         </div>
         <div id="testeToast" class="teste-toast"></div>
 
-        <div class="teste-main">
+        <!-- Seletor de jogadores do elenco -->
+        <div id="rosterPickerDrawer" class="roster-picker-drawer" aria-hidden="true" role="dialog" aria-label="Adicionar jogadores do elenco">
+          <div class="roster-picker-panel">
+            <div class="roster-picker-header">
+              <span class="roster-picker-title">Adicionar do elenco</span>
+              <button id="rosterPickerClose" class="roster-picker-close" type="button" aria-label="Fechar">×</button>
+            </div>
+            <input id="rosterPickerSearch" class="teste-input" type="search" placeholder="Buscar jogador..." autocomplete="off" />
+            <div id="rosterPickerList" class="roster-picker-list"></div>
+            <div class="roster-picker-footer">
+              <button id="rosterPickerAddAll" class="ctrl-btn" type="button">Adicionar todos</button>
+              <button id="rosterPickerDone" class="ctrl-btn ctrl-salvar" type="button">Pronto</button>
+            </div>
+          </div>
+        </div>
 
+        <div class="teste-summary" id="testeSummary"></div>
+
+        <div class="teste-main">
           <!-- Batter list -->
           <div class="teste-batters-panel">
             <h3 class="teste-section-title">Rebatedores</h3>
@@ -76,8 +94,12 @@
             </div>
 
             <div class="teste-atbat-actions">
-              <button id="testeHit"        class="atbat-btn atbat-hit">Hit ✔</button>
+              <button id="testeHit"        class="atbat-btn atbat-hit">Hit</button>
+              <button id="testeHomeRun"    class="atbat-btn atbat-hr">HR</button>
               <button id="testeOut"        class="atbat-btn atbat-out">Out</button>
+              <button id="testeStrikeout"  class="atbat-btn atbat-k">K</button>
+              <button id="testeWalk"       class="atbat-btn atbat-bb">BB</button>
+              <button id="testeHbp"        class="atbat-btn atbat-hbp">HBP</button>
               <button id="testeBall"       class="atbat-btn atbat-ball">Ball</button>
               <button id="testeStrike"     class="atbat-btn atbat-strike">Strike</button>
               <button id="testeUndo"       class="atbat-btn atbat-undo">↩ Desfazer</button>
@@ -105,127 +127,42 @@
 
           <!-- Live stats table -->
           <div class="teste-stats-panel">
-            <h3 class="teste-section-title">Estatísticas ao vivo</h3>
-            <table class="teste-stats-table">
-              <thead>
-                <tr>
-                  <th>Rebatedor</th>
-                  <th>AB</th>
-                  <th>H</th>
-                  <th>BB</th>
-                  <th>K</th>
-                  <th>AVG</th>
-                </tr>
-              </thead>
-              <tbody id="testeStatsBody"></tbody>
-            </table>
+            <h3 class="teste-section-title">Estatísticas do dia</h3>
+            <div class="teste-stats-table-wrap">
+              <table class="teste-stats-table" id="testeStatsTable">
+                <thead>
+                  <tr>
+                    <th>Rebatedor</th>
+                    <th title="Plate appearances — aparições totais">PA</th>
+                    <th title="At-bats oficiais — PA menos BB e HBP">AB</th>
+                    <th title="Hits (sem contar HR)">H</th>
+                    <th title="Home runs">HR</th>
+                    <th title="Walks">BB</th>
+                    <th title="Hit by pitch">HBP</th>
+                    <th title="Strikeouts">K</th>
+                    <th title="(H + HR) ÷ AB oficial">AVG</th>
+                  </tr>
+                </thead>
+                <tbody id="testeStatsBody"></tbody>
+              </table>
+            </div>
 
             <div id="testeLeaderboard" class="teste-leaderboard" hidden>
               <h3 class="teste-section-title" style="margin-top:16px">🏆 Melhor AVG</h3>
               <div id="testeLeaderboardContent"></div>
             </div>
           </div>
-
-        </div>
-        </div>
-
-        <div id="testeSoftballPanel" class="teste-mode-panel" hidden>
-          <div class="softball-layout">
-            <section class="softball-card">
-              <h3 class="teste-section-title">At-bat de Softball</h3>
-              <div class="softball-form">
-                <label class="teste-field-group">
-                  <span class="teste-label">Rebatedora</span>
-                  <input id="softballBatter" class="teste-input" placeholder="Nome..." />
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Pitcher</span>
-                  <input id="softballPitcher" class="teste-input" placeholder="Pitcher..." />
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Inning</span>
-                  <input id="softballInning" class="teste-input" type="number" min="1" value="1" />
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Contagem</span>
-                  <div class="softball-count-row">
-                    <input id="softballBalls" class="teste-input" type="number" min="0" max="4" value="0" aria-label="Balls" />
-                    <input id="softballStrikes" class="teste-input" type="number" min="0" max="3" value="0" aria-label="Strikes" />
-                  </div>
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Resultado</span>
-                  <select id="softballResult" class="teste-input">
-                    <option value="1B">Single</option>
-                    <option value="2B">Double</option>
-                    <option value="3B">Triple</option>
-                    <option value="HR">Home run</option>
-                    <option value="BB">Walk</option>
-                    <option value="K">Strikeout</option>
-                    <option value="OUT">Out</option>
-                    <option value="FC">Fielder choice</option>
-                    <option value="ROE">Erro</option>
-                    <option value="SAC">Sacrifice</option>
-                  </select>
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Contato</span>
-                  <select id="softballContact" class="teste-input">
-                    <option value="">Opcional</option>
-                    <option value="ground">Ground ball</option>
-                    <option value="line">Line drive</option>
-                    <option value="fly">Fly ball</option>
-                    <option value="pop">Pop up</option>
-                    <option value="bunt">Bunt</option>
-                  </select>
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">Direcao</span>
-                  <select id="softballDirection" class="teste-input">
-                    <option value="">Opcional</option>
-                    <option value="LF">Left</option>
-                    <option value="LC">Left-center</option>
-                    <option value="CF">Center</option>
-                    <option value="RC">Right-center</option>
-                    <option value="RF">Right</option>
-                    <option value="INF">Infield</option>
-                  </select>
-                </label>
-                <label class="teste-field-group">
-                  <span class="teste-label">RBI</span>
-                  <input id="softballRbi" class="teste-input" type="number" min="0" value="0" />
-                </label>
-                <label class="teste-field-group softball-notes">
-                  <span class="teste-label">Observacao</span>
-                  <textarea id="softballNotes" class="softball-textarea" placeholder="Ex: contato forte no campo oposto..."></textarea>
-                </label>
-              </div>
-              <div class="softball-actions">
-                <button id="softballSave" class="ctrl-btn ctrl-salvar">Salvar At-Bat</button>
-                <button id="softballClear" class="ctrl-btn ctrl-reset">Limpar formulario</button>
-              </div>
-            </section>
-
-            <section class="softball-card">
-              <div class="softball-history-heading">
-                <h3 class="teste-section-title">Dados salvos</h3>
-                <button id="softballClearHistory" class="ctrl-btn ctrl-reset">Apagar tudo</button>
-              </div>
-              <div id="softballSummary" class="softball-summary"></div>
-              <div id="softballHistory" class="softball-history"></div>
-            </section>
-          </div>
         </div>
       </section>
 
       <section id="testeHistoricoView" class="historico-view">
-        <h2 class="historico-title">Histórico de Treinos</h2>
+        <h2 class="historico-title">Histórico de Treinos salvos</h2>
         <div id="testeHistorico"></div>
       </section>
     </main>
 
-    <script src="lineup-data.js?v=4"></script>
-    <script src="app.js?v=22"></script>
-    <script src="supabase.js?v=4"></script>
+    <script src="lineup-data.js?v=5"></script>
+    <script src="app.js?v=23"></script>
+    <script src="supabase.js?v=5"></script>
   </body>
 </html>

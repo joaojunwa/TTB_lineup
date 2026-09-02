@@ -56,36 +56,42 @@ function mostrarToast(msg, tipo = "ok") {
 
 async function salvarTreino() {
   const pitcher = document.querySelector("#testePitcherInput")?.value.trim() || null;
-  const comAB = testeState.batters.filter((b) => testeBatterAB(b) > 0);
+  /* Salva quem teve qualquer aparição registrada (PA), não só at-bats */
+  const comDados = testeState.batters.filter((b) => (b.pa || 0) > 0);
 
-  if (comAB.length === 0) {
-    mostrarToast("Nenhum rebatedor com at-bats para salvar.", "erro");
+  if (comDados.length === 0) {
+    mostrarToast("Nenhum rebatedor com dados para salvar.", "erro");
     return;
   }
 
   const btn = document.querySelector("#testeSalvar");
+  const originalLabel = btn?.textContent;
   if (btn) { btn.disabled = true; btn.textContent = "Salvando..."; }
 
   try {
     const sessionId = Date.now().toString();
-    const rows = comAB.map((b) => ({
-      session_id: sessionId,
-      pitcher,
-      nome_jogador: b.name,
-      ab: testeBatterAB(b),
-      hits: testeBatterHits(b),
-      bb: testeBatterBB(b),
-      k: testeBatterK(b),
-      avg_decimal: testeBatterAB(b) > 0 ? testeBatterHits(b) / testeBatterAB(b) : 0,
-    }));
+    const rows = comDados.map((b) => {
+      const officialAb = Math.max(0, b.ab || 0);
+      const hitsTotais = (b.h || 0) + (b.hr || 0);
+      return {
+        session_id: sessionId,
+        pitcher,
+        nome_jogador: b.name,
+        ab: officialAb,
+        hits: hitsTotais,
+        bb: b.bb || 0,
+        k: b.k || 0,
+        avg_decimal: officialAb > 0 ? hitsTotais / officialAb : 0,
+      };
+    });
 
     await sbInsert("treinos", rows);
-    mostrarToast("Treino salvo!");
+    mostrarToast("Treino salvo no banco!");
     await carregarHistorico();
   } catch (err) {
     mostrarToast("Erro ao salvar: " + err.message, "erro");
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = "Salvar Treino"; }
+    if (btn) { btn.disabled = false; btn.textContent = originalLabel || "Salvar no banco"; }
   }
 }
 
@@ -262,7 +268,7 @@ function renderHistorico(records) {
   document.querySelector("#btnApagarTudo")?.addEventListener("click", apagarTudo);
 }
 
-if (PAGE === "teste") {
+if (typeof PAGE !== "undefined" && PAGE === "teste") {
   document.querySelector("#testeSalvar")?.addEventListener("click", salvarTreino);
   carregarHistorico();
 }

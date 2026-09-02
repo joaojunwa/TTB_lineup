@@ -3594,35 +3594,116 @@ if (PAGE === "status") {
 }
 
 /* ═══════════════════════════════
-   TESTE TAB
+   TREINO TAB (antiga "Teste")
+   Mini-Stats do dia — não grava nada nos stats oficiais.
 ═══════════════════════════════ */
 
+const TREINO_STATE_KEY = "ttb_treino_dia_v1";
+
+/* batter: {
+     id, name, number, photo, rosterId (id do elenco, se veio de lá),
+     pa, ab, h, hr, bb, hbp, k,        ← contadores acumulados
+     events: ['hit'|'hr'|'out'|'k'|'bb'|'hbp'],  ← histórico p/ desfazer
+     currentPitches: [{x,y,isStrike,zone}]
+   } */
 const testeState = {
-  batters: [],        // { id, name, completedABs: ['hit'|'out'|'k'|'bb'], currentPitches: [{x,y,isStrike}] }
+  batters: [],
   currentIndex: 0,
   nextId: 1,
 };
 
-const SOFTBALL_ATBATS_KEY = "ttb_softball_atbats";
-let softballAtBats = [];
+/* Cada evento contribui assim para os contadores: */
+const TREINO_EVENT_DELTA = {
+  hit: { pa: 1, ab: 1, h: 1 },
+  hr:  { pa: 1, ab: 1, hr: 1 },
+  out: { pa: 1, ab: 1 },
+  k:   { pa: 1, ab: 1, k: 1 },
+  bb:  { pa: 1, bb: 1 },
+  hbp: { pa: 1, hbp: 1 },
+};
 
-function testeBatterAB(batter) {
-  return batter.completedABs.filter((r) => r === "hit" || r === "out" || r === "k").length;
+function makeTreinoBatter(data = {}) {
+  return {
+    id: data.id ?? testeState.nextId++,
+    name: data.name || "",
+    number: data.number || "",
+    photo: data.photo || "",
+    rosterId: data.rosterId || "",
+    pa: Number(data.pa) || 0,
+    ab: Number(data.ab) || 0,
+    h: Number(data.h) || 0,
+    hr: Number(data.hr) || 0,
+    bb: Number(data.bb) || 0,
+    hbp: Number(data.hbp) || 0,
+    k: Number(data.k) || 0,
+    events: Array.isArray(data.events) ? [...data.events] : [],
+    currentPitches: Array.isArray(data.currentPitches) ? [...data.currentPitches] : [],
+  };
 }
-function testeBatterHits(batter) {
-  return batter.completedABs.filter((r) => r === "hit").length;
+
+function saveTreinoState() {
+  try {
+    const pitcher = document.querySelector("#testePitcherInput")?.value.trim() || "";
+    /* Sessão vazia (sem rebatedores e sem pitcher) → não deixa lixo no storage */
+    if (testeState.batters.length === 0 && !pitcher) {
+      localStorage.removeItem(TREINO_STATE_KEY);
+      return;
+    }
+    localStorage.setItem(TREINO_STATE_KEY, JSON.stringify({
+      updatedAt: new Date().toISOString(),
+      pitcher,
+      currentIndex: testeState.currentIndex,
+      nextId: testeState.nextId,
+      batters: testeState.batters,
+    }));
+  } catch (_) {}
 }
-function testeBatterBB(batter) {
-  return batter.completedABs.filter((r) => r === "bb").length;
+
+function loadTreinoState() {
+  try {
+    const raw = localStorage.getItem(TREINO_STATE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (!saved || !Array.isArray(saved.batters)) return;
+    testeState.batters = saved.batters.map(makeTreinoBatter);
+    testeState.currentIndex = Math.min(
+      Math.max(0, Number(saved.currentIndex) || 0),
+      Math.max(0, testeState.batters.length - 1),
+    );
+    testeState.nextId = Math.max(
+      Number(saved.nextId) || 1,
+      testeState.batters.reduce((max, b) => Math.max(max, Number(b.id) || 0), 0) + 1,
+    );
+    const pitcherInput = document.querySelector("#testePitcherInput");
+    if (pitcherInput && saved.pitcher) pitcherInput.value = saved.pitcher;
+  } catch (_) {}
 }
-function testeBatterK(batter) {
-  return batter.completedABs.filter((r) => r === "k").length;
+
+/* AB oficial = AB - BB - HBP (mesma regra da aba Stats).
+   Aqui já contamos ab só nas aparições que viram at-bat, então AB oficial = ab. */
+function treinoOfficialAb(b) {
+  return Math.max(0, (b.ab || 0));
 }
-function testeAvg(batter) {
-  const ab = testeBatterAB(batter);
-  if (ab === 0) return ".000";
-  const avg = testeBatterHits(batter) / ab;
-  return "." + String(Math.round(avg * 1000)).padStart(3, "0");
+
+function treinoAvgValue(b) {
+  const ab = treinoOfficialAb(b);
+  if (!ab) return null;
+  return Math.min(((b.h || 0) + (b.hr || 0)) / ab, 1);
+}
+
+function treinoAvgText(b) {
+  const avg = treinoAvgValue(b);
+  if (avg === null) return "—";
+  return avg.toFixed(3).replace(/^0/, "");
+}
+
+function treinoAvgClass(b) {
+  const avg = treinoAvgValue(b);
+  if (avg === null) return "stats-avg-none";
+  if (avg >= 0.4) return "stats-avg-elite";
+  if (avg >= 0.3) return "stats-avg-good";
+  if (avg >= 0.2) return "stats-avg-ok";
+  return "stats-avg-low";
 }
 
 function testeCurrentBatter() {
@@ -3639,11 +3720,32 @@ function testeCurrentStrikes() {
   return b ? b.currentPitches.filter((p) => p.isStrike).length : 0;
 }
 
+/* Registra o resultado de uma aparição para o batedor atual */
 function testeCompleteAB(result) {
   const b = testeCurrentBatter();
-  if (!b) return;
-  b.completedABs.push(result);
+  if (!b || !TREINO_EVENT_DELTA[result]) return;
+  const delta = TREINO_EVENT_DELTA[result];
+  Object.entries(delta).forEach(([field, amount]) => {
+    b[field] = (b[field] || 0) + amount;
+  });
+  b.events.push(result);
   b.currentPitches = [];
+  renderTeste();
+}
+
+/* Desfaz o último evento (ou o último arremesso pendente) do batedor atual */
+function testeUndoLast() {
+  const b = testeCurrentBatter();
+  if (!b) return;
+  if (b.currentPitches.length > 0) {
+    b.currentPitches.pop();
+  } else if (b.events.length > 0) {
+    const last = b.events.pop();
+    const delta = TREINO_EVENT_DELTA[last] || {};
+    Object.entries(delta).forEach(([field, amount]) => {
+      b[field] = Math.max(0, (b[field] || 0) - amount);
+    });
+  }
   renderTeste();
 }
 
@@ -3656,6 +3758,109 @@ function testeAddPitch(x, y, isStrike, zone = null) {
   if (strikes >= 3) { testeCompleteAB("k"); return; }
   if (balls   >= 4) { testeCompleteAB("bb"); return; }
   renderTeste();
+}
+
+/* ── Adicionar jogadores ── */
+
+function treinoBatterInitials(name) {
+  return String(name).trim().split(/\s+/).slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "").join("") || "?";
+}
+
+function treinoAvatarFallback(img, name) {
+  const initials = encodeURIComponent(treinoBatterInitials(name));
+  img.src = `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'%3E%3Crect width='60' height='60' fill='%232b383b'/%3E%3Ctext x='30' y='38' text-anchor='middle' font-family='Arial,sans-serif' font-size='20' font-weight='700' fill='%23f7c948'%3E${initials}%3C/text%3E%3C/svg%3E`;
+}
+
+/* Todos os jogadores conhecidos: lineup + banco + custom (via roster do app.js) */
+function treinoRosterPlayers() {
+  return roster.map((p) => ({
+    id: p.id,
+    name: p.name,
+    number: p.number || "",
+    photo: p.photo || "",
+  }));
+}
+
+function treinoAddRosterPlayer(rosterPlayer) {
+  if (!rosterPlayer) return false;
+  if (testeState.batters.some((b) => b.rosterId && b.rosterId === rosterPlayer.id)) return false;
+  testeState.batters.push(makeTreinoBatter({
+    id: testeState.nextId++,
+    name: rosterPlayer.name,
+    number: rosterPlayer.number,
+    photo: rosterPlayer.photo,
+    rosterId: rosterPlayer.id,
+  }));
+  return true;
+}
+
+let _rosterPickerSearch = "";
+
+function openRosterPicker() {
+  const drawer = document.querySelector("#rosterPickerDrawer");
+  if (!drawer) return;
+  _rosterPickerSearch = "";
+  const search = document.querySelector("#rosterPickerSearch");
+  if (search) search.value = "";
+  renderRosterPicker();
+  drawer.classList.add("is-open");
+  drawer.setAttribute("aria-hidden", "false");
+  search?.focus();
+}
+
+function closeRosterPicker() {
+  const drawer = document.querySelector("#rosterPickerDrawer");
+  if (!drawer) return;
+  drawer.classList.remove("is-open");
+  drawer.setAttribute("aria-hidden", "true");
+}
+
+function renderRosterPicker() {
+  const list = document.querySelector("#rosterPickerList");
+  if (!list) return;
+  const term = _rosterPickerSearch.trim().toLowerCase();
+  const added = new Set(testeState.batters.map((b) => b.rosterId).filter(Boolean));
+  const players = treinoRosterPlayers()
+    .filter((p) => !term || p.name.toLowerCase().includes(term) || String(p.number).includes(term))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+
+  if (players.length === 0) {
+    list.innerHTML = `<p class="roster-picker-empty">Nenhum jogador encontrado.</p>`;
+    return;
+  }
+
+  list.innerHTML = "";
+  players.forEach((p) => {
+    const isAdded = added.has(p.id);
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = `roster-picker-item${isAdded ? " is-added" : ""}`;
+    row.disabled = isAdded;
+    const img = document.createElement("img");
+    img.className = "roster-picker-photo";
+    img.alt = "";
+    img.src = p.photo || "";
+    img.addEventListener("error", () => treinoAvatarFallback(img, p.name), { once: true });
+    const name = document.createElement("span");
+    name.className = "roster-picker-name";
+    name.textContent = p.name;
+    const num = document.createElement("span");
+    num.className = "roster-picker-num";
+    num.textContent = p.number ? `#${p.number}` : "";
+    const tag = document.createElement("span");
+    tag.className = "roster-picker-add";
+    tag.textContent = isAdded ? "✓" : "+";
+    row.append(img, name, num, tag);
+    row.addEventListener("click", () => {
+      if (treinoAddRosterPlayer(p)) {
+        testeState.currentIndex = testeState.batters.length - 1;
+        renderTeste();
+        renderRosterPicker();
+      }
+    });
+    list.append(row);
+  });
 }
 
 function renderTestePitchDots() {
@@ -3672,60 +3877,132 @@ function renderTesteBatterList() {
   const list = document.querySelector("#testeBatterList");
   if (!list) return;
   if (testeState.batters.length === 0) {
-    list.innerHTML = `<li style="color:var(--text-muted);font-size:0.8rem;padding:8px">Adicione rebatedores acima.</li>`;
+    list.innerHTML = `<li class="teste-batter-empty">Adicione rebatedores acima ou pelo elenco.</li>`;
     return;
   }
-  list.innerHTML = testeState.batters
-    .map((b, i) => {
-      const isCurrent = i === testeState.currentIndex;
-      return `<li class="teste-batter-item${isCurrent ? " is-current" : ""}" data-idx="${i}">
-        <span class="teste-batter-num">${i + 1}</span>
-        <span>${escapeHtml(b.name)}</span>
-        <button class="teste-batter-remove" data-remove="${i}" aria-label="Remover ${escapeHtml(b.name)}">×</button>
-      </li>`;
-    })
-    .join("");
+  list.innerHTML = "";
+  testeState.batters.forEach((b, i) => {
+    const li = document.createElement("li");
+    li.className = `teste-batter-item${i === testeState.currentIndex ? " is-current" : ""}`;
+    li.dataset.idx = i;
 
-  list.querySelectorAll(".teste-batter-item").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      if (e.target.closest("[data-remove]")) return;
-      testeState.currentIndex = Number(el.dataset.idx);
-      renderTeste();
-    });
-  });
-  list.querySelectorAll("[data-remove]").forEach((btn) => {
-    btn.addEventListener("click", (e) => {
+    const num = document.createElement("span");
+    num.className = "teste-batter-num";
+    num.textContent = i + 1;
+
+    const img = document.createElement("img");
+    img.className = "teste-batter-photo";
+    img.alt = "";
+    img.src = b.photo || "";
+    img.addEventListener("error", () => treinoAvatarFallback(img, b.name), { once: true });
+
+    const name = document.createElement("span");
+    name.className = "teste-batter-name";
+    name.textContent = b.name + (b.number ? ` #${b.number}` : "");
+
+    const line = document.createElement("span");
+    line.className = "teste-batter-line";
+    line.textContent = `${b.h + b.hr}/${treinoOfficialAb(b)} · ${treinoAvgText(b)}`;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "teste-batter-remove";
+    removeBtn.setAttribute("aria-label", `Remover ${b.name}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      const idx = Number(btn.dataset.remove);
-      testeState.batters.splice(idx, 1);
+      testeState.batters.splice(i, 1);
       if (testeState.currentIndex >= testeState.batters.length) {
         testeState.currentIndex = Math.max(0, testeState.batters.length - 1);
       }
       renderTeste();
     });
+
+    li.append(num, img, name, line, removeBtn);
+    li.addEventListener("click", () => {
+      testeState.currentIndex = i;
+      renderTeste();
+    });
+    list.append(li);
   });
+}
+
+function renderTesteSummary() {
+  const container = document.querySelector("#testeSummary");
+  if (!container) return;
+  const totals = testeState.batters.reduce((t, b) => {
+    t.pa += b.pa; t.ab += b.ab; t.h += b.h; t.hr += b.hr;
+    t.bb += b.bb; t.hbp += b.hbp; t.k += b.k;
+    return t;
+  }, { pa: 0, ab: 0, h: 0, hr: 0, bb: 0, hbp: 0, k: 0 });
+
+  const teamAvg = totals.ab
+    ? Math.min((totals.h + totals.hr) / totals.ab, 1).toFixed(3).replace(/^0/, "")
+    : "—";
+
+  const best = [...testeState.batters]
+    .filter((b) => treinoOfficialAb(b) > 0)
+    .sort((a, b) => (treinoAvgValue(b) ?? -1) - (treinoAvgValue(a) ?? -1))[0];
+
+  container.innerHTML = `
+    <div class="teste-summary-item"><span>PA</span><strong>${totals.pa}</strong></div>
+    <div class="teste-summary-item"><span>AB</span><strong>${totals.ab}</strong></div>
+    <div class="teste-summary-item"><span>H / HR</span><strong>${totals.h} / ${totals.hr}</strong></div>
+    <div class="teste-summary-item"><span>BB / HBP</span><strong>${totals.bb} / ${totals.hbp}</strong></div>
+    <div class="teste-summary-item"><span>K</span><strong>${totals.k}</strong></div>
+    <div class="teste-summary-item"><span>AVG do time</span><strong>${teamAvg}</strong></div>
+    <div class="teste-summary-item teste-summary-best"><span>Melhor AVG</span><strong>${best ? escapeHtml(best.name) + " " + treinoAvgText(best) : "—"}</strong></div>
+  `;
 }
 
 function renderTesteStats() {
   const tbody = document.querySelector("#testeStatsBody");
   if (!tbody) return;
   if (testeState.batters.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--text-muted);padding:10px">Nenhum rebatedor.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="teste-stats-empty">Nenhum rebatedor.</td></tr>`;
     return;
   }
-  tbody.innerHTML = testeState.batters
-    .map((b, i) => {
-      const isCurrent = i === testeState.currentIndex;
-      return `<tr class="${isCurrent ? "is-current-batter" : ""}">
-        <td>${escapeHtml(b.name)}</td>
-        <td>${testeBatterAB(b)}</td>
-        <td>${testeBatterHits(b)}</td>
-        <td>${testeBatterBB(b)}</td>
-        <td>${testeBatterK(b)}</td>
-        <td class="avg-cell">${testeAvg(b)}</td>
-      </tr>`;
-    })
-    .join("");
+
+  tbody.innerHTML = "";
+  const fields = ["pa", "ab", "h", "hr", "bb", "hbp", "k"];
+
+  testeState.batters.forEach((b, i) => {
+    const tr = document.createElement("tr");
+    tr.className = i === testeState.currentIndex ? "is-current-batter" : "";
+
+    const tdName = document.createElement("td");
+    tdName.className = "teste-stats-name";
+    tdName.textContent = b.name + (b.number ? ` #${b.number}` : "");
+    tr.append(tdName);
+
+    fields.forEach((field) => {
+      const td = document.createElement("td");
+      const input = document.createElement("input");
+      input.type = "number";
+      input.min = "0";
+      input.className = "teste-stat-input";
+      input.value = b[field] || 0;
+      input.setAttribute("aria-label", `${field.toUpperCase()} de ${b.name}`);
+      input.addEventListener("change", () => {
+        const val = Math.max(0, parseInt(input.value, 10) || 0);
+        b[field] = val;
+        input.value = val;
+        /* Edição manual invalida o histórico de desfazer daquele batedor */
+        b.events = [];
+        renderTeste();
+      });
+      input.addEventListener("click", (e) => e.stopPropagation());
+      td.append(input);
+      tr.append(td);
+    });
+
+    const tdAvg = document.createElement("td");
+    tdAvg.className = `teste-stats-avg ${treinoAvgClass(b)}`;
+    tdAvg.textContent = treinoAvgText(b);
+    tr.append(tdAvg);
+
+    tbody.append(tr);
+  });
 }
 
 function renderTesteLeaderboard() {
@@ -3733,15 +4010,11 @@ function renderTesteLeaderboard() {
   const content   = document.querySelector("#testeLeaderboardContent");
   if (!container || !content) return;
 
-  const withAB = testeState.batters.filter((b) => testeBatterAB(b) > 0);
-  if (withAB.length === 0) { container.hidden = true; return; }
+  const withAB = testeState.batters.filter((b) => treinoOfficialAb(b) > 0);
+  if (withAB.length < 2) { container.hidden = true; return; }
 
   container.hidden = false;
-  const sorted = [...withAB].sort((a, b) => {
-    const avgA = testeBatterHits(a) / testeBatterAB(a);
-    const avgB = testeBatterHits(b) / testeBatterAB(b);
-    return avgB - avgA;
-  });
+  const sorted = [...withAB].sort((a, b) => (treinoAvgValue(b) ?? -1) - (treinoAvgValue(a) ?? -1));
 
   const medals = ["🥇", "🥈", "🥉"];
   content.innerHTML = sorted
@@ -3750,8 +4023,8 @@ function renderTesteLeaderboard() {
       return `<div class="leaderboard-entry">
         <span class="leaderboard-rank rank-${i + 1}">${rank}</span>
         <span>${escapeHtml(b.name)}</span>
-        <span style="color:var(--text-muted);font-size:0.76rem;margin-left:6px">${testeBatterAB(b)} AB · ${testeBatterHits(b)} H</span>
-        <span class="leaderboard-avg">${testeAvg(b)}</span>
+        <span style="color:var(--text-muted);font-size:0.76rem;margin-left:6px">${treinoOfficialAb(b)} AB · ${b.h + b.hr} H</span>
+        <span class="leaderboard-avg">${treinoAvgText(b)}</span>
       </div>`;
     })
     .join("");
@@ -3762,16 +4035,15 @@ function renderTeste() {
 
   const nameEl  = document.querySelector("#testeCurrentName");
   const countEl = document.querySelector("#testeCurrentCount");
-  if (nameEl)  nameEl.textContent  = b ? b.name : "— selecione um rebatedor —";
+  if (nameEl)  nameEl.textContent  = b ? (b.name + (b.number ? ` #${b.number}` : "")) : "— selecione um rebatedor —";
   if (countEl) countEl.textContent = b ? `B: ${testeCurrentBalls()} · S: ${testeCurrentStrikes()}` : "B: 0 · S: 0";
 
-  const pitcherDisplay = document.querySelector("#testePitcherInput");
-  // no separate display needed; input is visible
-
   renderTesteBatterList();
+  renderTesteSummary();
   renderTesteStats();
   renderTestePitchDots();
   renderTesteLeaderboard();
+  saveTreinoState();
 }
 
 function showTesteToast(message, type = "ok") {
@@ -3788,194 +4060,13 @@ function showTesteToast(message, type = "ok") {
   toast._timer = setTimeout(() => toast.classList.remove("is-visible"), 3500);
 }
 
-function setTesteMode(mode) {
-  const isSoftball = mode === "softball";
-  document.querySelector("#testeTreinoTab")?.classList.toggle("is-active", !isSoftball);
-  document.querySelector("#testeSoftballTab")?.classList.toggle("is-active", isSoftball);
-  const treinoPanel = document.querySelector("#testeTreinoPanel");
-  const softballPanel = document.querySelector("#testeSoftballPanel");
-  const historicoView = document.querySelector("#testeHistoricoView");
-  if (treinoPanel) treinoPanel.hidden = isSoftball;
-  if (softballPanel) softballPanel.hidden = !isSoftball;
-  if (historicoView) historicoView.hidden = isSoftball;
-}
-
-function loadSoftballAtBats() {
-  try {
-    const raw = localStorage.getItem(SOFTBALL_ATBATS_KEY);
-    softballAtBats = raw ? JSON.parse(raw) : [];
-    if (!Array.isArray(softballAtBats)) softballAtBats = [];
-  } catch (_) {
-    softballAtBats = [];
-  }
-}
-
-function saveSoftballAtBats() {
-  try {
-    localStorage.setItem(SOFTBALL_ATBATS_KEY, JSON.stringify(softballAtBats));
-  } catch (_) {}
-}
-
-function getSoftballValue(id) {
-  return document.querySelector(`#${id}`)?.value.trim() ?? "";
-}
-
-function resetSoftballForm(keepNames = true) {
-  if (!keepNames) {
-    const batter = document.querySelector("#softballBatter");
-    const pitcher = document.querySelector("#softballPitcher");
-    if (batter) batter.value = "";
-    if (pitcher) pitcher.value = "";
-  }
-
-  const fields = {
-    softballBalls: "0",
-    softballStrikes: "0",
-    softballResult: "1B",
-    softballContact: "",
-    softballDirection: "",
-    softballRbi: "0",
-    softballNotes: "",
-  };
-
-  Object.entries(fields).forEach(([id, value]) => {
-    const field = document.querySelector(`#${id}`);
-    if (field) field.value = value;
-  });
-}
-
-function softballIsAtBat(result) {
-  return ["1B", "2B", "3B", "HR", "K", "OUT", "FC", "ROE"].includes(result);
-}
-
-function softballIsHit(result) {
-  return ["1B", "2B", "3B", "HR"].includes(result);
-}
-
-function formatSoftballAvg(decimal) {
-  return "." + String(Math.round(decimal * 1000)).padStart(3, "0");
-}
-
-function saveSoftballAtBat() {
-  const batter = getSoftballValue("softballBatter");
-  if (!batter) {
-    showTesteToast("Informe a rebatedora do at-bat.", "erro");
-    return;
-  }
-
-  const result = getSoftballValue("softballResult") || "1B";
-  const record = {
-    id: Date.now().toString(),
-    createdAt: new Date().toISOString(),
-    batter,
-    pitcher: getSoftballValue("softballPitcher"),
-    inning: Number(getSoftballValue("softballInning")) || 1,
-    balls: Number(getSoftballValue("softballBalls")) || 0,
-    strikes: Number(getSoftballValue("softballStrikes")) || 0,
-    result,
-    contact: getSoftballValue("softballContact"),
-    direction: getSoftballValue("softballDirection"),
-    rbi: Number(getSoftballValue("softballRbi")) || 0,
-    notes: getSoftballValue("softballNotes"),
-  };
-
-  softballAtBats.unshift(record);
-  saveSoftballAtBats();
-  renderSoftballAtBats();
-  resetSoftballForm(true);
-  showTesteToast("At-bat de softball salvo.");
-}
-
-function removeSoftballAtBat(id) {
-  softballAtBats = softballAtBats.filter((record) => record.id !== id);
-  saveSoftballAtBats();
-  renderSoftballAtBats();
-}
-
-function clearSoftballAtBats() {
-  if (softballAtBats.length === 0) return;
-  if (!confirm("Apagar todos os at-bats de softball salvos?")) return;
-  softballAtBats = [];
-  saveSoftballAtBats();
-  renderSoftballAtBats();
-  showTesteToast("Histórico de softball apagado.");
-}
-
-function renderSoftballSummary() {
-  const container = document.querySelector("#softballSummary");
-  if (!container) return;
-  const ab = softballAtBats.filter((record) => softballIsAtBat(record.result)).length;
-  const hits = softballAtBats.filter((record) => softballIsHit(record.result)).length;
-  const walks = softballAtBats.filter((record) => record.result === "BB").length;
-  const rbi = softballAtBats.reduce((total, record) => total + (Number(record.rbi) || 0), 0);
-  const avg = ab > 0 ? hits / ab : 0;
-
-  container.innerHTML = `
-    <div class="softball-summary-item"><span>AB</span><strong>${ab}</strong></div>
-    <div class="softball-summary-item"><span>Hits</span><strong>${hits}</strong></div>
-    <div class="softball-summary-item"><span>BB</span><strong>${walks}</strong></div>
-    <div class="softball-summary-item"><span>AVG</span><strong>${formatSoftballAvg(avg)}</strong></div>
-    <div class="softball-summary-item"><span>RBI</span><strong>${rbi}</strong></div>
-  `;
-}
-
-function renderSoftballAtBats() {
-  renderSoftballSummary();
-  const container = document.querySelector("#softballHistory");
-  if (!container) return;
-
-  if (softballAtBats.length === 0) {
-    container.innerHTML = `<p class="softball-empty">Nenhum at-bat de softball salvo ainda.</p>`;
-    return;
-  }
-
-  container.innerHTML = softballAtBats
-    .map((record) => {
-      const time = new Date(record.createdAt).toLocaleString("pt-BR", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-      const details = [
-        `Inning ${record.inning}`,
-        `B${record.balls}-S${record.strikes}`,
-        record.pitcher ? `Pitcher: ${record.pitcher}` : "",
-        record.contact || "",
-        record.direction || "",
-        record.rbi ? `${record.rbi} RBI` : "",
-      ].filter(Boolean).join(" · ");
-
-      return `
-        <article class="softball-atbat-card">
-          <div class="softball-atbat-top">
-            <span class="softball-result">${escapeHtml(record.result)}</span>
-            <span class="softball-player">${escapeHtml(record.batter)}</span>
-            <span class="softball-time">${escapeHtml(time)}</span>
-            <button class="teste-batter-remove softball-remove" data-softball-remove="${escapeHtml(record.id)}" type="button" aria-label="Remover at-bat">x</button>
-          </div>
-          <div class="softball-atbat-meta">${escapeHtml(details || "Sem detalhes")}</div>
-          ${record.notes ? `<div class="softball-atbat-note">${escapeHtml(record.notes)}</div>` : ""}
-        </article>
-      `;
-    })
-    .join("");
-
-  container.querySelectorAll("[data-softball-remove]").forEach((button) => {
-    button.addEventListener("click", () => removeSoftballAtBat(button.dataset.softballRemove));
-  });
-}
-
 if (PAGE === "teste") {
-  loadSoftballAtBats();
-  renderSoftballAtBats();
+  loadPlayerTags();
+  loadCustomPlayers();
+  loadCustomPlayersRemote();
+  loadTreinoState();
 
-  document.querySelector("#testeTreinoTab")?.addEventListener("click", () => setTesteMode("treino"));
-  document.querySelector("#testeSoftballTab")?.addEventListener("click", () => setTesteMode("softball"));
-  document.querySelector("#softballSave")?.addEventListener("click", saveSoftballAtBat);
-  document.querySelector("#softballClear")?.addEventListener("click", () => resetSoftballForm(false));
-  document.querySelector("#softballClearHistory")?.addEventListener("click", clearSoftballAtBats);
-  /* ── Pitch zone (Teste) ── */
+  /* ── Pitch zone ── */
   const testePitchWrapper = document.querySelector("#testePitchWrapper");
   const testePitchBox     = document.querySelector("#testePitchBox");
 
@@ -3986,13 +4077,14 @@ if (PAGE === "teste") {
     });
   }
 
-  /* ── Buttons ── */
-  document.querySelector("#testeHit")?.addEventListener("click", () => {
-    if (testeCurrentBatter()) testeCompleteAB("hit");
-  });
-  document.querySelector("#testeOut")?.addEventListener("click", () => {
-    if (testeCurrentBatter()) testeCompleteAB("out");
-  });
+  /* ── Result buttons ── */
+  document.querySelector("#testeHit")?.addEventListener("click", () => testeCompleteAB("hit"));
+  document.querySelector("#testeHomeRun")?.addEventListener("click", () => testeCompleteAB("hr"));
+  document.querySelector("#testeOut")?.addEventListener("click", () => testeCompleteAB("out"));
+  document.querySelector("#testeStrikeout")?.addEventListener("click", () => testeCompleteAB("k"));
+  document.querySelector("#testeWalk")?.addEventListener("click", () => testeCompleteAB("bb"));
+  document.querySelector("#testeHbp")?.addEventListener("click", () => testeCompleteAB("hbp"));
+
   document.querySelector("#testeBall")?.addEventListener("click", () => {
     const b = testeCurrentBatter();
     if (!b) return;
@@ -4007,28 +4099,19 @@ if (PAGE === "teste") {
     if (testeCurrentStrikes() >= 3) { testeCompleteAB("k"); return; }
     renderTeste();
   });
-  document.querySelector("#testeUndo")?.addEventListener("click", () => {
-    const b = testeCurrentBatter();
-    if (!b) return;
-    if (b.currentPitches.length > 0) {
-      b.currentPitches.pop();
-    } else if (b.completedABs.length > 0) {
-      b.completedABs.pop();
-    }
-    renderTeste();
-  });
+  document.querySelector("#testeUndo")?.addEventListener("click", testeUndoLast);
   document.querySelector("#testeNextBatter")?.addEventListener("click", () => {
     if (testeState.batters.length === 0) return;
     testeState.currentIndex = (testeState.currentIndex + 1) % testeState.batters.length;
     renderTeste();
   });
 
-  /* ── Add batter ── */
+  /* ── Add batter (avulso) ── */
   function testeAddBatter() {
     const input = document.querySelector("#testeBatterInput");
     const name  = input?.value.trim();
     if (!name) return;
-    testeState.batters.push({ id: testeState.nextId++, name, completedABs: [], currentPitches: [] });
+    testeState.batters.push(makeTreinoBatter({ id: testeState.nextId++, name }));
     testeState.currentIndex = testeState.batters.length - 1;
     if (input) input.value = "";
     renderTeste();
@@ -4039,12 +4122,43 @@ if (PAGE === "teste") {
     if (e.key === "Enter") testeAddBatter();
   });
 
+  /* ── Roster picker ── */
+  document.querySelector("#testeAddFromRoster")?.addEventListener("click", openRosterPicker);
+  document.querySelector("#rosterPickerClose")?.addEventListener("click", closeRosterPicker);
+  document.querySelector("#rosterPickerDone")?.addEventListener("click", closeRosterPicker);
+  document.querySelector("#rosterPickerSearch")?.addEventListener("input", (e) => {
+    _rosterPickerSearch = e.target.value;
+    renderRosterPicker();
+  });
+  document.querySelector("#rosterPickerAddAll")?.addEventListener("click", () => {
+    let added = 0;
+    treinoRosterPlayers().forEach((p) => { if (treinoAddRosterPlayer(p)) added += 1; });
+    if (added) {
+      testeState.currentIndex = testeState.batters.length - 1;
+      renderTeste();
+      renderRosterPicker();
+      showTesteToast(`${added} jogador${added > 1 ? "es" : ""} adicionado${added > 1 ? "s" : ""}.`);
+    } else {
+      showTesteToast("Todos os jogadores do elenco já estão na lista.", "erro");
+    }
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeRosterPicker();
+  });
+
+  /* ── Pitcher persist ── */
+  document.querySelector("#testePitcherInput")?.addEventListener("input", saveTreinoState);
+
+  /* ── Zerar sessão ── */
   document.querySelector("#testeResetAll")?.addEventListener("click", () => {
+    if (testeState.batters.length && !confirm("Zerar a sessão de treino? Os dados do dia serão apagados deste aparelho.")) return;
     testeState.batters = [];
     testeState.currentIndex = 0;
     const pitcherInput = document.querySelector("#testePitcherInput");
     if (pitcherInput) pitcherInput.value = "";
+    try { localStorage.removeItem(TREINO_STATE_KEY); } catch (_) {}
     renderTeste();
+    showTesteToast("Sessão zerada.");
   });
 
   renderTeste();
