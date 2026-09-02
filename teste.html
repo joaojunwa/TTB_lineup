@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Treino — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=22" />
+    <link rel="stylesheet" href="styles.css?v=23" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -93,17 +93,35 @@
               <span id="testeCurrentCount" class="teste-current-count">B: 0 · S: 0</span>
             </div>
 
-            <div class="teste-atbat-actions">
-              <button id="testeHit"        class="atbat-btn atbat-hit">Hit</button>
-              <button id="testeHomeRun"    class="atbat-btn atbat-hr">HR</button>
-              <button id="testeOut"        class="atbat-btn atbat-out">Out</button>
-              <button id="testeStrikeout"  class="atbat-btn atbat-k">K</button>
-              <button id="testeWalk"       class="atbat-btn atbat-bb">BB</button>
-              <button id="testeHbp"        class="atbat-btn atbat-hbp">HBP</button>
-              <button id="testeBall"       class="atbat-btn atbat-ball">Ball</button>
-              <button id="testeStrike"     class="atbat-btn atbat-strike">Strike</button>
-              <button id="testeUndo"       class="atbat-btn atbat-undo">↩ Desfazer</button>
-              <button id="testeNextBatter" class="atbat-btn atbat-next">Próx. ›</button>
+            <div class="atbat-groups">
+              <div class="atbat-group">
+                <span class="atbat-group-label">Contato</span>
+                <div class="atbat-grid atbat-grid-contact">
+                  <button data-result="hit"       class="atbat-btn atbat-hit">Hit</button>
+                  <button data-result="hr"        class="atbat-btn atbat-hr">HR</button>
+                  <button data-result="groundout" class="atbat-btn atbat-go">Groundout</button>
+                  <button data-result="flyout"    class="atbat-btn atbat-fo">Flyout</button>
+                  <button data-result="sacfly"    class="atbat-btn atbat-sf">Sac fly</button>
+                  <button data-result="out"       class="atbat-btn atbat-out">Out</button>
+                  <button data-result="k"         class="atbat-btn atbat-k">K</button>
+                  <button data-result="bb"        class="atbat-btn atbat-bb">BB</button>
+                  <button data-result="hbp"       class="atbat-btn atbat-hbp">HBP</button>
+                </div>
+              </div>
+              <div class="atbat-group">
+                <span class="atbat-group-label">Contagem</span>
+                <div class="atbat-grid atbat-grid-count">
+                  <button id="testeBall"   class="atbat-btn atbat-ball">Ball</button>
+                  <button id="testeStrike" class="atbat-btn atbat-strike">Strike</button>
+                </div>
+              </div>
+              <div class="atbat-group">
+                <span class="atbat-group-label">Ações</span>
+                <div class="atbat-grid atbat-grid-actions">
+                  <button id="testeUndo"       class="atbat-btn atbat-undo">↩ Desfazer</button>
+                  <button id="testeNextBatter" class="atbat-btn atbat-next">Próx. ›</button>
+                </div>
+              </div>
             </div>
 
             <div class="teste-field-row">
@@ -128,7 +146,10 @@
               <div class="spray-area">
                 <div class="spray-area-head">
                   <span class="pitch-area-label" id="sprayLabel">Spray chart</span>
-                  <button id="spraySkip" class="spray-skip-btn" type="button" hidden>pular marcação</button>
+                  <span class="spray-head-actions">
+                    <button id="spraySkip" class="spray-skip-btn" type="button" hidden>pular</button>
+                    <button id="sprayExport" class="spray-skip-btn spray-export-btn" type="button">↓ PNG</button>
+                  </span>
                 </div>
                 <div class="spray-field" id="sprayField">
                   <svg class="spray-field-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
@@ -199,7 +220,7 @@
     </main>
 
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=26"></script>
+    <script src="app.js?v=27"></script>
     <script src="supabase.js?v=5"></script>
   </body>
 </html>

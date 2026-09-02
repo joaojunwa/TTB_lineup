@@ -3668,9 +3668,9 @@ const TREINO_STATE_KEY = "ttb_treino_dia_v1";
 /* batter: {
      id, name, number, photo, rosterId (id do elenco, se veio de lá),
      pa, ab, h, hr, bb, hbp, k,        ← contadores acumulados
-     events: ['hit'|'hr'|'out'|'k'|'bb'|'hbp'],  ← histórico p/ desfazer
+     events: ['hit'|'hr'|'groundout'|'flyout'|'sacfly'|'out'|'k'|'bb'|'hbp'],  ← histórico p/ desfazer
      currentPitches: [{x,y,isStrike,zone}],
-     sprayHits: [{ x, y, kind: 'hit'|'hr' }]     ← spray chart (coords em % do campo)
+     sprayHits: [{ x, y, kind }]  ← spray chart; kind ∈ hit|hr|groundout|flyout|sacfly
    } */
 const testeState = {
   batters: [],
@@ -3678,19 +3678,35 @@ const testeState = {
   nextId: 1,
 };
 
-/* Quando != null, o campo espera um clique para marcar onde caiu a bola.
-   { kind: 'hit'|'hr', batterId } — o evento já foi contabilizado; só falta a coordenada.
+/* Quando != null, o campo espera um clique para marcar onde a bola foi rebatida.
+   { kind, batterId } — o evento já foi contabilizado; só falta a coordenada.
    batterId trava a marcação ao rebatedor que rebateu: qualquer troca a cancela. */
 let sprayPending = null;
 
-/* Cada evento contribui assim para os contadores: */
+/* Cada evento contribui assim para os contadores.
+   groundout/flyout = out normal (PA + AB). sacfly = PA só (não conta AB, não mexe no AVG). */
 const TREINO_EVENT_DELTA = {
-  hit: { pa: 1, ab: 1, h: 1 },
-  hr:  { pa: 1, ab: 1, hr: 1 },
-  out: { pa: 1, ab: 1 },
-  k:   { pa: 1, ab: 1, k: 1 },
-  bb:  { pa: 1, bb: 1 },
-  hbp: { pa: 1, hbp: 1 },
+  hit:       { pa: 1, ab: 1, h: 1 },
+  hr:        { pa: 1, ab: 1, hr: 1 },
+  groundout: { pa: 1, ab: 1 },
+  flyout:    { pa: 1, ab: 1 },
+  sacfly:    { pa: 1 },
+  out:       { pa: 1, ab: 1 },
+  k:         { pa: 1, ab: 1, k: 1 },
+  bb:        { pa: 1, bb: 1 },
+  hbp:       { pa: 1, hbp: 1 },
+};
+
+/* Eventos que podem ser marcados no campo (spray chart) */
+const TREINO_SPRAYABLE = new Set(["hit", "hr", "groundout", "flyout", "sacfly"]);
+
+/* Rótulo e cor de cada tipo de marca no campo */
+const SPRAY_KIND_META = {
+  hit:       { label: "Hit",      color: "#f6c347" },
+  hr:        { label: "HR",       color: "#e0524f" },
+  groundout: { label: "Groundout", color: "#6b9bd1" },
+  flyout:    { label: "Flyout",   color: "#8c9eb5" },
+  sacfly:    { label: "Sac fly",  color: "#60d2c8" },
 };
 
 function makeTreinoBatter(data = {}) {
@@ -3712,7 +3728,7 @@ function makeTreinoBatter(data = {}) {
     sprayHits: Array.isArray(data.sprayHits)
       ? data.sprayHits
           .filter((s) => s && Number.isFinite(s.x) && Number.isFinite(s.y))
-          .map((s) => ({ x: s.x, y: s.y, kind: s.kind === "hr" ? "hr" : "hit" }))
+          .map((s) => ({ x: s.x, y: s.y, kind: SPRAY_KIND_META[s.kind] ? s.kind : "hit" }))
       : [],
   };
 }
@@ -3805,8 +3821,9 @@ function testeCurrentStrikes() {
 }
 
 /* Registra o resultado de uma aparição para o batedor atual.
-   Para hit/hr, entra em "modo marcação" no spray chart — o próximo clique
-   no campo grava onde a bola caiu. O botão "pular marcação" cancela isso. */
+   Para eventos de contato (hit/hr/groundout/flyout/sacfly), entra em "modo
+   marcação": o próximo clique no campo grava onde a bola foi rebatida.
+   O botão "pular marcação" cancela isso. */
 function testeCompleteAB(result) {
   const b = testeCurrentBatter();
   if (!b || !TREINO_EVENT_DELTA[result]) return;
@@ -3816,7 +3833,7 @@ function testeCompleteAB(result) {
   });
   b.events.push(result);
   b.currentPitches = [];
-  if (result === "hit" || result === "hr") {
+  if (TREINO_SPRAYABLE.has(result)) {
     sprayPending = { kind: result, batterId: b.id };
   }
   renderTeste();
@@ -3835,8 +3852,8 @@ function testeUndoLast() {
     Object.entries(delta).forEach(([field, amount]) => {
       b[field] = Math.max(0, (b[field] || 0) - amount);
     });
-    /* se o evento desfeito era um hit/hr, remove a última marca do spray dele */
-    if ((last === "hit" || last === "hr") && b.sprayHits.length) {
+    /* se o evento desfeito podia ser marcado, remove a última marca desse tipo */
+    if (TREINO_SPRAYABLE.has(last) && b.sprayHits.length) {
       for (let i = b.sprayHits.length - 1; i >= 0; i -= 1) {
         if (b.sprayHits[i].kind === last) { b.sprayHits.splice(i, 1); break; }
       }
@@ -4011,29 +4028,247 @@ function renderSpray() {
   if (hint) {
     hint.hidden = !marking;
     hint.textContent = marking
-      ? `Clique onde caiu o ${sprayPending.kind === "hr" ? "home run" : "hit"} de ${b.name}`
+      ? `Clique onde foi rebatido o ${(SPRAY_KIND_META[sprayPending.kind]?.label || "hit").toLowerCase()} de ${b.name}`
       : "";
   }
   if (label) {
     label.textContent = b
-      ? (marking ? "Marque no campo" : `Spray chart — ${b.name}`)
+      ? (marking ? "Marque no campo" : `Spray — ${b.name}`)
       : "Spray chart";
   }
 
-  const hits = b?.sprayHits ?? [];
-  dots.innerHTML = hits
-    .map((s, i) =>
-      `<span class="spray-dot spray-dot-${s.kind}" style="left:${s.x}%;top:${s.y}%" title="${s.kind === "hr" ? "Home run" : "Hit"} #${i + 1}"></span>`,
-    )
+  const marks = b?.sprayHits ?? [];
+  dots.innerHTML = marks
+    .map((s, i) => {
+      const meta = SPRAY_KIND_META[s.kind] || SPRAY_KIND_META.hit;
+      return `<span class="spray-dot spray-dot-${s.kind}" style="left:${s.x}%;top:${s.y}%;--spray-c:${meta.color}" title="${meta.label} #${i + 1}"></span>`;
+    })
     .join("");
 
   if (legend) {
-    const nHit = hits.filter((s) => s.kind === "hit").length;
-    const nHr  = hits.filter((s) => s.kind === "hr").length;
-    legend.innerHTML = b && (nHit || nHr)
-      ? `<span class="spray-leg spray-leg-hit">● ${nHit} hit${nHit === 1 ? "" : "s"}</span>
-         <span class="spray-leg spray-leg-hr">● ${nHr} HR</span>`
-      : (b ? `<span class="spray-leg-empty">Sem hits marcados</span>` : "");
+    if (!b) { legend.innerHTML = ""; }
+    else {
+      const counts = {};
+      marks.forEach((s) => { counts[s.kind] = (counts[s.kind] || 0) + 1; });
+      const parts = Object.keys(SPRAY_KIND_META)
+        .filter((k) => counts[k])
+        .map((k) => `<span class="spray-leg" style="color:${SPRAY_KIND_META[k].color}">● ${counts[k]} ${SPRAY_KIND_META[k].label}</span>`);
+      legend.innerHTML = parts.length ? parts.join("") : `<span class="spray-leg-empty">Sem marcas no campo</span>`;
+    }
+  }
+}
+
+/* ── Export PNG: card do rebatedor (stats + campo com marcas) ── */
+
+function _sprayFieldPath(ctx, x0, y0, size) {
+  /* desenha o mesmo campo do SVG, em coords de canvas */
+  const X = (p) => x0 + (p / 100) * size;
+  const Y = (p) => y0 + (p / 100) * size;
+
+  /* grama */
+  ctx.fillStyle = "#2f7d4a";
+  ctx.fillRect(x0, y0, size, size);
+
+  /* arco outfield */
+  ctx.fillStyle = "#357f4d";
+  ctx.beginPath();
+  ctx.moveTo(X(4), Y(96));
+  ctx.arc(X(50), Y(96), (92 / 100) * size, Math.PI, 2 * Math.PI);
+  ctx.closePath();
+  ctx.fill();
+
+  /* infield terra */
+  ctx.fillStyle = "#b57b4a";
+  ctx.beginPath();
+  ctx.moveTo(X(50), Y(92));
+  ctx.lineTo(X(82), Y(60));
+  ctx.lineTo(X(50), Y(28));
+  ctx.lineTo(X(18), Y(60));
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.35)";
+  ctx.lineWidth = size * 0.006;
+  ctx.stroke();
+
+  /* grama do infield */
+  ctx.fillStyle = "#357f4d";
+  ctx.beginPath();
+  ctx.moveTo(X(50), Y(84));
+  ctx.lineTo(X(74), Y(60));
+  ctx.lineTo(X(50), Y(36));
+  ctx.lineTo(X(26), Y(60));
+  ctx.closePath();
+  ctx.fill();
+
+  /* linhas de foul */
+  ctx.strokeStyle = "rgba(255,255,255,0.55)";
+  ctx.lineWidth = size * 0.007;
+  ctx.beginPath(); ctx.moveTo(X(50), Y(92)); ctx.lineTo(X(4), Y(46)); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(X(50), Y(92)); ctx.lineTo(X(96), Y(46)); ctx.stroke();
+
+  /* montinho */
+  ctx.fillStyle = "#a06a3d";
+  ctx.beginPath();
+  ctx.arc(X(50), Y(60), size * 0.03, 0, Math.PI * 2);
+  ctx.fill();
+
+  /* bases */
+  [[50, 92], [82, 60], [50, 28], [18, 60]].forEach(([bx, by]) => {
+    ctx.save();
+    ctx.translate(X(bx), Y(by));
+    ctx.rotate(Math.PI / 4);
+    const s = size * 0.03;
+    ctx.fillStyle = "#fffbe7";
+    ctx.fillRect(-s / 2, -s / 2, s, s);
+    ctx.restore();
+  });
+}
+
+async function exportTreinoBatterCard() {
+  const b = testeCurrentBatter();
+  if (!b) { showTesteToast("Selecione um rebatedor primeiro.", "erro"); return; }
+
+  const btn = document.querySelector("#sprayExport");
+  if (btn) { btn.disabled = true; btn.textContent = "…"; }
+
+  try {
+    const SCALE = 2;
+    const W = 420;
+    const PAD = 20;
+    const HEAD_H = 58;
+    const STAT_H = 62;
+    const FIELD = W - PAD * 2;
+    const LEG_H = 30;
+    const FOOT_H = 26;
+    const H = PAD + HEAD_H + STAT_H + FIELD + LEG_H + FOOT_H + PAD;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = W * SCALE;
+    canvas.height = H * SCALE;
+    const ctx = canvas.getContext("2d");
+    ctx.scale(SCALE, SCALE);
+
+    /* fundo */
+    ctx.fillStyle = "#0d1520";
+    ctx.fillRect(0, 0, W, H);
+
+    /* barra topo */
+    const g = ctx.createLinearGradient(0, 0, W, 0);
+    g.addColorStop(0, "#d43a22");
+    g.addColorStop(1, "#f6c347");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, 3);
+
+    /* nome + número */
+    let y = PAD + 6;
+    ctx.fillStyle = "#f6c347";
+    ctx.font = "bold 20px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText(_canvasTruncate(ctx, b.name, W - PAD * 2 - 70), PAD, y);
+    if (b.number) {
+      ctx.fillStyle = "rgba(240,234,216,0.5)";
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.fillText(`#${b.number}`, PAD, y + 24);
+    }
+    const dateStr = new Date().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    ctx.fillStyle = "rgba(240,234,216,0.35)";
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.textAlign = "right";
+    ctx.fillText("Treino · " + dateStr, W - PAD, y + 4);
+
+    /* linha de stats */
+    y = PAD + HEAD_H;
+    const cells = [
+      ["PA", b.pa], ["AB", b.ab], ["H", b.h], ["HR", b.hr],
+      ["BB", b.bb], ["HBP", b.hbp], ["K", b.k], ["AVG", treinoAvgText(b)],
+    ];
+    const cw = (W - PAD * 2) / cells.length;
+    ctx.fillStyle = "#111c2b";
+    ctx.fillRect(PAD, y, W - PAD * 2, STAT_H - 10);
+    cells.forEach(([labelTxt, val], i) => {
+      const cx = PAD + cw * i + cw / 2;
+      ctx.fillStyle = "#6b7a8d";
+      ctx.font = "bold 10px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "top";
+      ctx.fillText(labelTxt, cx, y + 8);
+      ctx.fillStyle = labelTxt === "AVG" ? "#f6c347" : "#f0ead8";
+      ctx.font = "bold 16px system-ui, sans-serif";
+      ctx.fillText(String(val), cx, y + 22);
+    });
+
+    /* campo */
+    const fy = PAD + HEAD_H + STAT_H;
+    _sprayFieldPath(ctx, PAD, fy, FIELD);
+    ctx.strokeStyle = "rgba(255,255,255,0.12)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(PAD, fy, FIELD, FIELD);
+
+    /* marcas */
+    (b.sprayHits || []).forEach((s) => {
+      const meta = SPRAY_KIND_META[s.kind] || SPRAY_KIND_META.hit;
+      const mx = PAD + (s.x / 100) * FIELD;
+      const my = fy + (s.y / 100) * FIELD;
+      const r = s.kind === "hr" ? 7 : 6;
+      ctx.beginPath();
+      ctx.arc(mx, my, r, 0, Math.PI * 2);
+      ctx.fillStyle = meta.color;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(0,0,0,0.5)";
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    });
+
+    /* legenda */
+    const ly = fy + FIELD + 8;
+    const counts = {};
+    (b.sprayHits || []).forEach((s) => { counts[s.kind] = (counts[s.kind] || 0) + 1; });
+    const legParts = Object.keys(SPRAY_KIND_META).filter((k) => counts[k]);
+    let lx = PAD;
+    ctx.font = "bold 11px system-ui, sans-serif";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+    if (legParts.length === 0) {
+      ctx.fillStyle = "#6b7a8d";
+      ctx.fillText("Sem marcas no campo", PAD, ly + 10);
+    } else {
+      legParts.forEach((k) => {
+        const meta = SPRAY_KIND_META[k];
+        ctx.fillStyle = meta.color;
+        ctx.beginPath();
+        ctx.arc(lx + 4, ly + 10, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#c8d2dc";
+        const txt = `${counts[k]} ${meta.label}`;
+        ctx.fillText(txt, lx + 12, ly + 10);
+        lx += 14 + ctx.measureText(txt).width + 14;
+      });
+    }
+
+    /* rodapé */
+    ctx.fillStyle = "#3a4a5a";
+    ctx.font = "10px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("TTB — spray chart do treino", PAD, H - PAD + 12);
+
+    const nameSlug = slug(b.name) || "rebatedor";
+    canvas.toBlob((blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `treino-${nameSlug}-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+    }, "image/png");
+  } catch (err) {
+    console.error("Erro ao exportar card:", err);
+    showTesteToast("Erro ao gerar a imagem.", "erro");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "↓ PNG"; }
   }
 }
 
@@ -4262,13 +4497,11 @@ if (PAGE === "teste") {
   }
 
   /* ── Result buttons ── */
-  document.querySelector("#testeHit")?.addEventListener("click", () => testeCompleteAB("hit"));
-  document.querySelector("#testeHomeRun")?.addEventListener("click", () => testeCompleteAB("hr"));
-  document.querySelector("#testeOut")?.addEventListener("click", () => testeCompleteAB("out"));
-  document.querySelector("#testeStrikeout")?.addEventListener("click", () => testeCompleteAB("k"));
-  document.querySelector("#testeWalk")?.addEventListener("click", () => testeCompleteAB("bb"));
-  document.querySelector("#testeHbp")?.addEventListener("click", () => testeCompleteAB("hbp"));
+  document.querySelectorAll("[data-result]").forEach((btn) => {
+    btn.addEventListener("click", () => testeCompleteAB(btn.dataset.result));
+  });
   document.querySelector("#spraySkip")?.addEventListener("click", spraySkip);
+  document.querySelector("#sprayExport")?.addEventListener("click", exportTreinoBatterCard);
 
   document.querySelector("#testeBall")?.addEventListener("click", () => {
     const b = testeCurrentBatter();

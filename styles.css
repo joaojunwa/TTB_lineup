@@ -1920,22 +1920,36 @@ textarea {
   white-space: nowrap;
 }
 
+.spray-head-actions {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
 .spray-skip-btn {
   flex-shrink: 0;
   border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: 5px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 0.66rem;
+  font-size: 0.64rem;
   font-weight: 800;
   text-transform: uppercase;
   padding: 3px 7px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .spray-skip-btn:hover {
   background: #1e304e;
   color: #f0ead8;
+}
+
+.spray-skip-btn:disabled { opacity: 0.5; cursor: default; }
+
+.spray-export-btn {
+  border-color: rgba(246, 195, 71, 0.4);
+  color: var(--accent);
 }
 
 .spray-field {
@@ -1983,11 +1997,10 @@ textarea {
   transform: translate(-50%, -50%);
   border: 1.5px solid rgba(0, 0, 0, 0.45);
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.35);
+  background: var(--spray-c, #f6c347);
 }
 
-.spray-dot-hit { background: #f6c347; }
-.spray-dot-hr  {
-  background: #e0524f;
+.spray-dot-hr {
   width: 13px;
   height: 13px;
   box-shadow: 0 0 8px rgba(224, 82, 79, 0.7), 0 2px 5px rgba(0, 0, 0, 0.35);
@@ -2016,15 +2029,14 @@ textarea {
 
 .spray-legend {
   display: flex;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 6px 12px;
   justify-content: center;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
   min-height: 14px;
 }
 
-.spray-leg-hit { color: #f6c347; }
-.spray-leg-hr  { color: #e0524f; }
 .spray-leg-empty { color: var(--text-muted); font-weight: 700; }
 
 @media (max-width: 720px) {
@@ -2706,6 +2718,41 @@ textarea {
   white-space: nowrap;
 }
 
+/* Grupos de botões de resultado */
+.atbat-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+  align-items: flex-start;
+}
+
+.atbat-group {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.atbat-group:first-child { flex: 1 1 300px; }
+
+.atbat-group-label {
+  font-size: 0.64rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.atbat-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.atbat-grid-contact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.atbat-grid-count   { grid-template-columns: repeat(2, 64px); }
+.atbat-grid-actions { grid-template-columns: repeat(2, auto); }
+
+/* legado — a grade antiga */
 .teste-atbat-actions {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -2713,13 +2760,14 @@ textarea {
 }
 
 .atbat-btn {
-  min-height: 40px;
+  min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #111827;
   color: #f0ead8;
-  font-size: 0.84rem;
+  font-size: 0.82rem;
   font-weight: 800;
+  padding: 0 8px;
   cursor: pointer;
   transition: background 120ms, border-color 120ms;
 }
@@ -2729,8 +2777,17 @@ textarea {
 .atbat-hit    { border-color: rgba(76, 175, 125, 0.5); color: #4caf7d; }
 .atbat-hit:hover { background: rgba(76, 175, 125, 0.15); }
 
-.atbat-hr     { border-color: rgba(109, 227, 154, 0.6); color: #6de39a; }
-.atbat-hr:hover { background: rgba(109, 227, 154, 0.15); }
+.atbat-hr     { border-color: rgba(224, 82, 79, 0.6); color: #e0524f; }
+.atbat-hr:hover { background: rgba(224, 82, 79, 0.15); }
+
+.atbat-go     { border-color: rgba(107, 155, 209, 0.5); color: #6b9bd1; }
+.atbat-go:hover { background: rgba(107, 155, 209, 0.14); }
+
+.atbat-fo     { border-color: rgba(140, 158, 181, 0.5); color: #8c9eb5; }
+.atbat-fo:hover { background: rgba(140, 158, 181, 0.14); }
+
+.atbat-sf     { border-color: rgba(96, 210, 200, 0.5); color: #60d2c8; }
+.atbat-sf:hover { background: rgba(96, 210, 200, 0.14); }
 
 .atbat-out    { border-color: rgba(224, 82, 82, 0.5); color: #e05252; }
 .atbat-out:hover { background: rgba(224, 82, 82, 0.15); }
@@ -2948,6 +3005,16 @@ textarea {
   .teste-atbat-actions {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .atbat-groups {
+    gap: 10px 12px;
+  }
+
+  .atbat-group:first-child { flex-basis: 100%; }
+  .atbat-grid-contact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .atbat-grid-count { grid-template-columns: repeat(2, 1fr); }
+  .atbat-grid-actions { grid-template-columns: repeat(2, 1fr); }
+  .atbat-group:nth-child(2), .atbat-group:nth-child(3) { flex: 1 1 45%; }
 }
 
 /* ── Supabase / Histórico ── */
