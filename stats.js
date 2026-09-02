@@ -507,14 +507,33 @@ function _sortPlayers(players, stats) {
   });
 }
 
-/* ─── Debounced re-sort ─────────────────────────────── */
+/* ─── Re-sort adiada ─────────────────────────────────────
 
-let _resortTimer = null;
+   A tabela NÃO se reordena enquanto você está editando — isso fazia a
+   linha "pular" no meio da digitação. A reordenação só acontece quando
+   o foco sai de todos os inputs da tabela (ou ao trocar o "Ordenar por").
+*/
+
+let _resortPending = false;
 
 function _scheduleResort() {
-  clearTimeout(_resortTimer);
-  _resortTimer = setTimeout(() => renderStatsPage(), 1500);
+  _resortPending = true;
 }
+
+function _flushResortIfIdle() {
+  if (!_resortPending) return;
+  /* Só reordena se nenhum input da tabela estiver com foco */
+  const active = document.activeElement;
+  if (active && active.closest && active.closest("#statsTable")) return;
+  _resortPending = false;
+  renderStatsPage();
+}
+
+document.addEventListener("focusout", (e) => {
+  if (!e.target.closest || !e.target.closest("#statsTable")) return;
+  /* espera o foco assentar no próximo elemento antes de decidir */
+  setTimeout(_flushResortIfIdle, 100);
+});
 
 /* ─── Render ─────────────────────────────────────────── */
 
@@ -522,7 +541,7 @@ function renderStatsPage() {
   const tbody = document.getElementById("statsBody");
   if (!tbody) return;
 
-  clearTimeout(_resortTimer);
+  _resortPending = false;
 
   let players = _buildStatPlayers();
   const useAllSources = !_statsSources.game && !_statsSources.liveBp;
@@ -706,24 +725,27 @@ function renderStatsPage() {
         input.classList.remove("stats-input-invalid");
         input.title = "";
       });
+      /* Marca inconsistências em vermelho como AVISO, mas sempre salva —
+         durante uma correção manual os números passam por estados
+         temporariamente inválidos (ex: baixar o AB antes de ajustar o H). */
       if (currentBb + currentHbp > currentAb) {
         bbInput.classList.add("stats-input-invalid");
         hbpInput.classList.add("stats-input-invalid");
-        bbInput.title = "BB + HBP nao pode ser maior que AB";
-        hbpInput.title = "BB + HBP nao pode ser maior que AB";
-      } else if (currentH + currentHr > officialAb) {
+        bbInput.title = "Aviso: BB + HBP maior que AB";
+        hbpInput.title = "Aviso: BB + HBP maior que AB";
+      }
+      if (currentH + currentHr > officialAb) {
         hInput.classList.add("stats-input-invalid");
         hrInput.classList.add("stats-input-invalid");
-        hInput.title = "H + HR nao pode ser maior que AB menos BB e HBP";
-        hrInput.title = "H + HR nao pode ser maior que AB menos BB e HBP";
-      } else {
-        all[id].h  = currentH;
-        all[id].ab = currentAb;
-        all[id].bb = currentBb;
-        all[id].hbp = currentHbp;
-        all[id].hr = currentHr;
-        _saveSourceStats(editSource, all);
+        hInput.title = "Aviso: H + HR maior que AB menos BB e HBP";
+        hrInput.title = "Aviso: H + HR maior que AB menos BB e HBP";
       }
+      all[id].h  = currentH;
+      all[id].ab = currentAb;
+      all[id].bb = currentBb;
+      all[id].hbp = currentHbp;
+      all[id].hr = currentHr;
+      _saveSourceStats(editSource, all);
 
       /* Update AVG in place */
       tdAvg.textContent = _fmtAvg(all[id].h, all[id].ab, all[id].bb, all[id].hbp, all[id].hr);
