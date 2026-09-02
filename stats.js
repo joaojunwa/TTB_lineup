@@ -200,7 +200,32 @@ async function _syncRemoteStats(source = "game") {
         return;
       }
 
-      /* Remoto mais novo mas local tem mais dados (jogadores ou AB total) → merge */
+      /* IMPORTANTE: só faz merge (soma) quando os dois lados têm registros
+         REALMENTE distintos. Se o remoto já contém tudo que o local tem
+         (ou vice-versa), somar duplicaria os números — foi o que causou o
+         bug de "AB dobrado". Nesse caso, escolhemos o lado mais completo
+         sem somar. */
+      const remoteContainsLocal = _containsStats(remote.stats, localStats);
+      const localContainsRemote = _containsStats(localStats, remote.stats);
+
+      /* Remoto já engloba o local → aceita remoto como está */
+      if (remoteContainsLocal) {
+        _saveSourceStats(source, remote.stats, { remote: false, touch: false, updatedAt: remote.updatedAt });
+        renderStatsPage();
+        return;
+      }
+
+      /* Local já engloba o remoto → empurra local (sem somar) */
+      if (localContainsRemote) {
+        const at = localUpdated || new Date().toISOString();
+        _saveSourceStats(source, localStats, { remote: false, touch: false, updatedAt: at });
+        await _saveRemoteStats(source, localStats, at);
+        renderStatsPage();
+        return;
+      }
+
+      /* Divergência real (cada lado tem algo que o outro não tem) → aí sim
+         merge por soma, que é o comportamento correto para esse caso. */
       const localRicher = localHasStats && (localPlayers > remotePlayers || localAbTotal > remoteAbTotal);
       if (localRicher) {
         const merged = _mergeStats(remote.stats, localStats);
