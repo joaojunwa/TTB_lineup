@@ -3669,13 +3669,19 @@ const TREINO_STATE_KEY = "ttb_treino_dia_v1";
      id, name, number, photo, rosterId (id do elenco, se veio de lá),
      pa, ab, h, hr, bb, hbp, k,        ← contadores acumulados
      events: ['hit'|'hr'|'out'|'k'|'bb'|'hbp'],  ← histórico p/ desfazer
-     currentPitches: [{x,y,isStrike,zone}]
+     currentPitches: [{x,y,isStrike,zone}],
+     sprayHits: [{ x, y, kind: 'hit'|'hr' }]     ← spray chart (coords em % do campo)
    } */
 const testeState = {
   batters: [],
   currentIndex: 0,
   nextId: 1,
 };
+
+/* Quando != null, o campo espera um clique para marcar onde caiu a bola.
+   { kind: 'hit'|'hr', batterId } — o evento já foi contabilizado; só falta a coordenada.
+   batterId trava a marcação ao rebatedor que rebateu: qualquer troca a cancela. */
+let sprayPending = null;
 
 /* Cada evento contribui assim para os contadores: */
 const TREINO_EVENT_DELTA = {
@@ -3703,6 +3709,11 @@ function makeTreinoBatter(data = {}) {
     k: Number(data.k) || 0,
     events: Array.isArray(data.events) ? [...data.events] : [],
     currentPitches: Array.isArray(data.currentPitches) ? [...data.currentPitches] : [],
+    sprayHits: Array.isArray(data.sprayHits)
+      ? data.sprayHits
+          .filter((s) => s && Number.isFinite(s.x) && Number.isFinite(s.y))
+          .map((s) => ({ x: s.x, y: s.y, kind: s.kind === "hr" ? "hr" : "hit" }))
+      : [],
   };
 }
 
@@ -3775,6 +3786,14 @@ function testeCurrentBatter() {
   return testeState.batters[testeState.currentIndex] ?? null;
 }
 
+/* Troca o rebatedor selecionado, cancelando uma marcação de spray pendente */
+function selectTreinoBatter(index) {
+  if (index === testeState.currentIndex && !sprayPending) return;
+  testeState.currentIndex = index;
+  sprayPending = null;
+  renderTeste();
+}
+
 function testeCurrentBalls() {
   const b = testeCurrentBatter();
   return b ? b.currentPitches.filter((p) => !p.isStrike).length : 0;
@@ -3785,7 +3804,9 @@ function testeCurrentStrikes() {
   return b ? b.currentPitches.filter((p) => p.isStrike).length : 0;
 }
 
-/* Registra o resultado de uma aparição para o batedor atual */
+/* Registra o resultado de uma aparição para o batedor atual.
+   Para hit/hr, entra em "modo marcação" no spray chart — o próximo clique
+   no campo grava onde a bola caiu. O botão "pular marcação" cancela isso. */
 function testeCompleteAB(result) {
   const b = testeCurrentBatter();
   if (!b || !TREINO_EVENT_DELTA[result]) return;
@@ -3795,6 +3816,9 @@ function testeCompleteAB(result) {
   });
   b.events.push(result);
   b.currentPitches = [];
+  if (result === "hit" || result === "hr") {
+    sprayPending = { kind: result, batterId: b.id };
+  }
   renderTeste();
 }
 
@@ -3802,6 +3826,7 @@ function testeCompleteAB(result) {
 function testeUndoLast() {
   const b = testeCurrentBatter();
   if (!b) return;
+  if (sprayPending) { sprayPending = null; renderTeste(); return; }
   if (b.currentPitches.length > 0) {
     b.currentPitches.pop();
   } else if (b.events.length > 0) {
@@ -3810,7 +3835,33 @@ function testeUndoLast() {
     Object.entries(delta).forEach(([field, amount]) => {
       b[field] = Math.max(0, (b[field] || 0) - amount);
     });
+    /* se o evento desfeito era um hit/hr, remove a última marca do spray dele */
+    if ((last === "hit" || last === "hr") && b.sprayHits.length) {
+      for (let i = b.sprayHits.length - 1; i >= 0; i -= 1) {
+        if (b.sprayHits[i].kind === last) { b.sprayHits.splice(i, 1); break; }
+      }
+    }
   }
+  renderTeste();
+}
+
+/* Registra a coordenada da bola batida (clique no campo) */
+function sprayPlace(x, y) {
+  const b = testeCurrentBatter();
+  if (!b || !sprayPending) return;
+  b.sprayHits.push({
+    x: Math.max(0, Math.min(100, x)),
+    y: Math.max(0, Math.min(100, y)),
+    kind: sprayPending.kind,
+  });
+  sprayPending = null;
+  renderTeste();
+}
+
+/* Cancela o modo marcação sem gravar coordenada (o hit já foi contado) */
+function spraySkip() {
+  if (!sprayPending) return;
+  sprayPending = null;
   renderTeste();
 }
 
@@ -3938,6 +3989,54 @@ function renderTestePitchDots() {
     .join("");
 }
 
+/* ── Spray chart ── */
+
+function renderSpray() {
+  const field  = document.querySelector("#sprayField");
+  const dots   = document.querySelector("#sprayDots");
+  const hint   = document.querySelector("#sprayHint");
+  const label  = document.querySelector("#sprayLabel");
+  const legend = document.querySelector("#sprayLegend");
+  if (!field || !dots) return;
+
+  const b = testeCurrentBatter();
+  /* A marcação só vale para o rebatedor que rebateu; qualquer troca cancela */
+  if (sprayPending && (!b || sprayPending.batterId !== b.id)) sprayPending = null;
+  const marking = Boolean(b && sprayPending);
+
+  field.classList.toggle("is-marking", marking);
+  field.classList.toggle("is-disabled", !b);
+  const skipBtn = document.querySelector("#spraySkip");
+  if (skipBtn) skipBtn.hidden = !marking;
+  if (hint) {
+    hint.hidden = !marking;
+    hint.textContent = marking
+      ? `Clique onde caiu o ${sprayPending.kind === "hr" ? "home run" : "hit"} de ${b.name}`
+      : "";
+  }
+  if (label) {
+    label.textContent = b
+      ? (marking ? "Marque no campo" : `Spray chart — ${b.name}`)
+      : "Spray chart";
+  }
+
+  const hits = b?.sprayHits ?? [];
+  dots.innerHTML = hits
+    .map((s, i) =>
+      `<span class="spray-dot spray-dot-${s.kind}" style="left:${s.x}%;top:${s.y}%" title="${s.kind === "hr" ? "Home run" : "Hit"} #${i + 1}"></span>`,
+    )
+    .join("");
+
+  if (legend) {
+    const nHit = hits.filter((s) => s.kind === "hit").length;
+    const nHr  = hits.filter((s) => s.kind === "hr").length;
+    legend.innerHTML = b && (nHit || nHr)
+      ? `<span class="spray-leg spray-leg-hit">● ${nHit} hit${nHit === 1 ? "" : "s"}</span>
+         <span class="spray-leg spray-leg-hr">● ${nHr} HR</span>`
+      : (b ? `<span class="spray-leg-empty">Sem hits marcados</span>` : "");
+  }
+}
+
 function renderTesteBatterList() {
   const list = document.querySelector("#testeBatterList");
   if (!list) return;
@@ -3984,10 +4083,7 @@ function renderTesteBatterList() {
     });
 
     li.append(num, img, name, line, removeBtn);
-    li.addEventListener("click", () => {
-      testeState.currentIndex = i;
-      renderTeste();
-    });
+    li.addEventListener("click", () => selectTreinoBatter(i));
     list.append(li);
   });
 }
@@ -4039,9 +4135,7 @@ function renderTesteStats() {
        o rebatedor (mesmo efeito de clicar no card da lista à esquerda) */
     tr.addEventListener("click", (e) => {
       if (e.target.closest("input")) return;
-      if (testeState.currentIndex === i) return;
-      testeState.currentIndex = i;
-      renderTeste();
+      selectTreinoBatter(i);
     });
 
     const tdName = document.createElement("td");
@@ -4117,6 +4211,7 @@ function renderTeste() {
   renderTesteSummary();
   renderTesteStats();
   renderTestePitchDots();
+  renderSpray();
   renderTesteLeaderboard();
   saveTreinoState();
 }
@@ -4152,6 +4247,20 @@ if (PAGE === "teste") {
     });
   }
 
+  /* ── Spray chart: clique no campo marca onde a bola caiu ── */
+  const sprayField = document.querySelector("#sprayField");
+  if (sprayField) {
+    sprayField.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      if (!testeCurrentBatter() || !sprayPending) return;
+      event.preventDefault();
+      const rect = sprayField.getBoundingClientRect();
+      const x = ((event.clientX - rect.left) / rect.width) * 100;
+      const y = ((event.clientY - rect.top) / rect.height) * 100;
+      sprayPlace(x, y);
+    });
+  }
+
   /* ── Result buttons ── */
   document.querySelector("#testeHit")?.addEventListener("click", () => testeCompleteAB("hit"));
   document.querySelector("#testeHomeRun")?.addEventListener("click", () => testeCompleteAB("hr"));
@@ -4159,6 +4268,7 @@ if (PAGE === "teste") {
   document.querySelector("#testeStrikeout")?.addEventListener("click", () => testeCompleteAB("k"));
   document.querySelector("#testeWalk")?.addEventListener("click", () => testeCompleteAB("bb"));
   document.querySelector("#testeHbp")?.addEventListener("click", () => testeCompleteAB("hbp"));
+  document.querySelector("#spraySkip")?.addEventListener("click", spraySkip);
 
   document.querySelector("#testeBall")?.addEventListener("click", () => {
     const b = testeCurrentBatter();
@@ -4177,8 +4287,7 @@ if (PAGE === "teste") {
   document.querySelector("#testeUndo")?.addEventListener("click", testeUndoLast);
   document.querySelector("#testeNextBatter")?.addEventListener("click", () => {
     if (testeState.batters.length === 0) return;
-    testeState.currentIndex = (testeState.currentIndex + 1) % testeState.batters.length;
-    renderTeste();
+    selectTreinoBatter((testeState.currentIndex + 1) % testeState.batters.length);
   });
 
   /* ── Add batter (avulso) ── */
