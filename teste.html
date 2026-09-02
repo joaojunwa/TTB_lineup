@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Treino — TTB Lineup</title>
-    <link rel="stylesheet" href="styles.css?v=20" />
+    <link rel="stylesheet" href="styles.css?v=21" />
     <script src="auth.js?v=4"></script>
     <script>checkAuth();</script>
   </head>
@@ -127,25 +127,33 @@
 
           <!-- Live stats table -->
           <div class="teste-stats-panel">
-            <h3 class="teste-section-title">Estatísticas do dia</h3>
+            <div class="teste-stats-head">
+              <h3 class="teste-section-title">Estatísticas do dia</h3>
+              <p class="teste-stats-hint">Clique na linha para escolher o rebatedor</p>
+            </div>
             <div class="teste-stats-table-wrap">
               <table class="teste-stats-table" id="testeStatsTable">
                 <thead>
                   <tr>
                     <th>Rebatedor</th>
-                    <th title="Plate appearances — aparições totais">PA</th>
-                    <th title="At-bats oficiais — PA menos BB e HBP">AB</th>
-                    <th title="Hits (sem contar HR)">H</th>
+                    <th title="Plate Appearance — toda ida ao bastão (hit, out, K, BB, HBP)">PA</th>
+                    <th title="At-Bat — só as aparições que contam pra média (PA menos BB e HBP)">AB</th>
+                    <th title="Hits — sem contar os home runs">H</th>
                     <th title="Home runs">HR</th>
-                    <th title="Walks">BB</th>
-                    <th title="Hit by pitch">HBP</th>
+                    <th title="Walks — não contam no AB">BB</th>
+                    <th title="Hit by pitch — não conta no AB">HBP</th>
                     <th title="Strikeouts">K</th>
-                    <th title="(H + HR) ÷ AB oficial">AVG</th>
+                    <th title="Média = (H + HR) ÷ AB">AVG</th>
                   </tr>
                 </thead>
                 <tbody id="testeStatsBody"></tbody>
               </table>
             </div>
+            <p class="teste-stats-legend">
+              <strong>PA</strong> = todas as idas ao bastão &nbsp;·&nbsp;
+              <strong>AB</strong> = PA − BB − HBP (só o que conta pra média) &nbsp;·&nbsp;
+              <strong>AVG</strong> = (H + HR) ÷ AB
+            </p>
 
             <div id="testeLeaderboard" class="teste-leaderboard" hidden>
               <h3 class="teste-section-title" style="margin-top:16px">🏆 Melhor AVG</h3>
@@ -162,7 +170,7 @@
     </main>
 
     <script src="lineup-data.js?v=5"></script>
-    <script src="app.js?v=24"></script>
+    <script src="app.js?v=25"></script>
     <script src="supabase.js?v=5"></script>
   </body>
 </html>

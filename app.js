@@ -4035,9 +4035,19 @@ function renderTesteStats() {
     const tr = document.createElement("tr");
     tr.className = i === testeState.currentIndex ? "is-current-batter" : "";
 
+    /* Clicar em qualquer parte da linha que não seja um input seleciona
+       o rebatedor (mesmo efeito de clicar no card da lista à esquerda) */
+    tr.addEventListener("click", (e) => {
+      if (e.target.closest("input")) return;
+      if (testeState.currentIndex === i) return;
+      testeState.currentIndex = i;
+      renderTeste();
+    });
+
     const tdName = document.createElement("td");
-    tdName.className = "teste-stats-name";
+    tdName.className = "teste-stats-name teste-stats-name-click";
     tdName.textContent = b.name + (b.number ? ` #${b.number}` : "");
+    tdName.title = "Clique para selecionar este rebatedor";
     tr.append(tdName);
 
     fields.forEach((field) => {

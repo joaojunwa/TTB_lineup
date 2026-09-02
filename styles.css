@@ -2607,6 +2607,31 @@ textarea {
   padding: 14px;
 }
 
+.teste-stats-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.teste-stats-hint {
+  margin: 0 0 10px;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.teste-stats-legend {
+  margin: 8px 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.teste-stats-legend strong {
+  color: #f0ead8;
+}
+
 .teste-stats-table-wrap {
   overflow-x: auto;
 }
@@ -2642,13 +2667,38 @@ textarea {
   white-space: nowrap;
 }
 
+.teste-stats-name-click {
+  cursor: pointer;
+}
+
 .teste-stats-empty {
   color: var(--text-muted);
   padding: 10px;
 }
 
+/* Linha inteira clicável para selecionar o rebatedor */
+.teste-stats-table tbody tr {
+  cursor: pointer;
+}
+
+.teste-stats-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 .teste-stats-table tr.is-current-batter td {
   background: rgba(246, 195, 71, 0.07);
+}
+
+.teste-stats-table tr.is-current-batter:hover td {
+  background: rgba(246, 195, 71, 0.1);
+}
+
+.teste-stats-table tr.is-current-batter .teste-stats-name {
+  color: var(--accent);
+}
+
+.teste-stat-input {
+  cursor: text;
 }
 
 .teste-stat-input {
