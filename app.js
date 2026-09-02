@@ -35,7 +35,26 @@ const UNDO_LIMIT = 30;
 let undoStack = [];
 const CUSTOM_PLAYERS_KEY = "ttb_custom_players_v1";
 const CUSTOM_PLAYERS_REMOTE_ID = "ttb_custom_players_global";
+/* IDs de jogadores do elenco que foram removidos de propósito.
+   Sincroniza junto com o elenco para que a remoção "pegue" em todos os
+   aparelhos — sem isso, o cache local de outro dispositivo re-adicionava
+   o jogador apagado (foi o que causou os duplicados de Caio/Bruno). */
+const CUSTOM_PLAYERS_REMOVED_KEY = "ttb_custom_players_removed_v1";
 let customPlayers = [];
+let removedCustomIds = _loadRemovedCustomIds();
+
+function _loadRemovedCustomIds() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(CUSTOM_PLAYERS_REMOVED_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw : []);
+  } catch (_) { return new Set(); }
+}
+
+function _saveRemovedCustomIds() {
+  try {
+    localStorage.setItem(CUSTOM_PLAYERS_REMOVED_KEY, JSON.stringify([...removedCustomIds]));
+  } catch (_) {}
+}
 const PLAYER_TAGS_KEY = "ttb_player_tags_v1";
 let playerTags = {};
 const PLAYER_STATS_KEY = "ttb_player_stats_v2";
@@ -980,6 +999,7 @@ function loadCustomPlayers() {
     const saved = raw ? JSON.parse(raw) : [];
     if (!Array.isArray(saved)) return;
     saved.forEach((cp) => {
+      if (removedCustomIds.has(cp.id)) return;
       if (!roster.find((p) => p.id === cp.id)) {
         customPlayers.push(cp);
         roster.push({ ...cp, group: "Elenco", battingOrder: "" });
@@ -991,12 +1011,35 @@ function loadCustomPlayers() {
 function _applyCustomPlayers(players) {
   let changed = false;
   (players || []).forEach((cp) => {
-    if (!cp?.id || !cp?.name || customPlayers.some((player) => player.id === cp.id)) return;
+    if (!cp?.id || !cp?.name || removedCustomIds.has(cp.id)) return;
+    if (customPlayers.some((player) => player.id === cp.id)) return;
     customPlayers.push(cp);
     roster.push({ ...cp, group: "Elenco", battingOrder: "" });
     changed = true;
   });
   if (changed) localStorage.setItem(CUSTOM_PLAYERS_KEY, JSON.stringify(customPlayers));
+  return changed;
+}
+
+/* Remove do estado em memória e do cache local qualquer jogador que
+   esteja na lista de removidos. Retorna true se algo mudou. */
+function _purgeRemovedCustomPlayers() {
+  let changed = false;
+  const beforeCp = customPlayers.length;
+  customPlayers = customPlayers.filter((player) => !removedCustomIds.has(player.id));
+  if (customPlayers.length !== beforeCp) changed = true;
+  for (let i = roster.length - 1; i >= 0; i -= 1) {
+    if (removedCustomIds.has(roster[i].id)) { roster.splice(i, 1); changed = true; }
+  }
+  if (changed) {
+    Object.keys(assignments).forEach((key) => {
+      if (removedCustomIds.has(assignments[key])) assignments[key] = "";
+    });
+    if (removedCustomIds.has(dhAssignment)) dhAssignment = "";
+    if (removedCustomIds.has(designatedPitcherId)) designatedPitcherId = "";
+    removedCustomIds.forEach((id) => { lineupPending.delete(id); bancoPlayers.delete(id); delete battingOrders[id]; });
+    try { localStorage.setItem(CUSTOM_PLAYERS_KEY, JSON.stringify(customPlayers)); } catch (_) {}
+  }
   return changed;
 }
 
@@ -1006,18 +1049,29 @@ async function syncCustomPlayersRemote() {
     const headers = { apikey: AUTH_SUPABASE_KEY, Authorization: `Bearer ${AUTH_SUPABASE_KEY}` };
     const read = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?select=state&id=eq.${CUSTOM_PLAYERS_REMOTE_ID}`, { headers });
     if (!read.ok) throw new Error();
-    const remote = (await read.json())[0]?.state?.players || [];
+    const state = (await read.json())[0]?.state || {};
+    const remote = Array.isArray(state.players) ? state.players : [];
+
+    /* União das listas de removidos (local + remoto), aplicada aos dois lados */
+    (Array.isArray(state.removed) ? state.removed : []).forEach((id) => removedCustomIds.add(id));
+    _saveRemovedCustomIds();
+    _purgeRemovedCustomPlayers();
+
     const merged = new Map(remote.map((player) => [player.id, player]));
     customPlayers.forEach((player) => merged.set(player.id, player));
-    const players = [...merged.values()];
+    const players = [...merged.values()].filter((player) => !removedCustomIds.has(player.id));
+    const removed = [...removedCustomIds];
+
     _applyCustomPlayers(players);
     const now = new Date().toISOString();
     const write = await fetch(`${AUTH_SUPABASE_URL}/rest/v1/jogos?on_conflict=id`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify({ id: CUSTOM_PLAYERS_REMOTE_ID, state: { players, updated_at: now }, updated_at: now }),
+      body: JSON.stringify({ id: CUSTOM_PLAYERS_REMOTE_ID, state: { players, removed, updated_at: now }, updated_at: now }),
     });
     if (!write.ok) throw new Error();
+    if (PAGE === "lineup") render();
+    if (PAGE === "status") renderStatus();
   } catch (err) { console.warn("Elenco geral em modo local:", err); }
 }
 
@@ -1028,11 +1082,19 @@ async function loadCustomPlayersRemote() {
       headers: { apikey: AUTH_SUPABASE_KEY, Authorization: `Bearer ${AUTH_SUPABASE_KEY}` },
     });
     if (!res.ok) throw new Error();
-    const players = (await res.json())[0]?.state?.players || [];
-    if (_applyCustomPlayers(players)) {
+    const state = (await res.json())[0]?.state || {};
+    (Array.isArray(state.removed) ? state.removed : []).forEach((id) => removedCustomIds.add(id));
+    _saveRemovedCustomIds();
+    let changed = _purgeRemovedCustomPlayers();
+    const players = (Array.isArray(state.players) ? state.players : []).filter((p) => !removedCustomIds.has(p.id));
+    if (_applyCustomPlayers(players)) changed = true;
+    if (changed) {
       if (PAGE === "lineup") render();
       if (PAGE === "status") renderStatus();
     }
+    /* Se o remoto ainda listava algum jogador removido localmente, reescreve limpo */
+    const remoteHadRemoved = (Array.isArray(state.players) ? state.players : []).some((p) => removedCustomIds.has(p.id));
+    if (remoteHadRemoved) syncCustomPlayersRemote();
   } catch (err) { console.warn("Não foi possível carregar o elenco geral:", err); }
 }
 
@@ -1069,6 +1131,9 @@ function removeCustomPlayer(id) {
   bancoPlayers.delete(id);
   delete battingOrders[id];
   compactBattingOrders();
+  /* Marca como removido para o sync não re-adicionar de outro aparelho */
+  removedCustomIds.add(id);
+  _saveRemovedCustomIds();
   saveCustomPlayers();
   /* Clean orphaned stats for deleted player */
   try {
