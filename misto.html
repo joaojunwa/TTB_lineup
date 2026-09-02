@@ -59,7 +59,7 @@
         </section>
 
         <section class="misto-players-section">
-          <div class="misto-table-head"><div><span class="misto-section-title">Controle por jogador</span><small>Quantidade de cada gasto e valor a cobrar.</small></div></div>
+          <div class="misto-table-head"><div><span class="misto-section-title">Controle por jogador</span><small>Quantidade de cada gasto e valor a cobrar.</small></div><input id="mistoTableSearch" class="misto-event-name" type="search" placeholder="Buscar jogador..." aria-label="Buscar jogador na tabela" /></div>
           <form id="mistoAddPlayer" class="misto-add-player">
             <input id="mistoNewPlayerName" maxlength="60" placeholder="Nome do jogador *" required aria-label="Nome do jogador" />
             <input id="mistoNewPlayerNumber" maxlength="12" placeholder="Número" aria-label="Número do jogador" />
@@ -77,6 +77,7 @@
         <div id="mistoPlayersDrawer" class="misto-drawer" aria-hidden="true" role="dialog" aria-label="Selecionar jogadores do Misto">
           <div class="misto-drawer-panel">
             <div class="misto-drawer-head"><div><strong>Jogadores do Misto</strong><small>Escolha quem participa deste evento</small></div><button id="mistoClosePlayers" type="button" aria-label="Fechar">×</button></div>
+            <div class="misto-drawer-search"><input id="mistoPlayerSearch" class="misto-event-name" type="search" placeholder="Buscar jogador..." aria-label="Buscar jogador" /></div>
             <div id="mistoPlayerPicker" class="misto-player-picker"></div>
             <div class="misto-drawer-foot"><button id="mistoDonePlayers" class="misto-choose-players" type="button">Concluir</button></div>
           </div>

@@ -6,7 +6,7 @@ const MISTO_ITEMS = [
   { id: "registration", label: "Inscrição", shared: true },
   { id: "breakfast", label: "Café da manhã" },
   { id: "lunch", label: "Almoço" },
-  { id: "lodging", label: "Alojamento" },
+  { id: "lodging", label: "Alojamento", shared: true },
   { id: "happyHour", label: "Happy hour (HH)" },
 ];
 
@@ -19,6 +19,21 @@ function _mistoLoad() {
 }
 let _misto = _mistoLoad();
 let _mistoSaveTimer = null;
+let _mistoPickerFilter = "";
+let _mistoTableFilter = "";
+function _mistoNormalize(value) { return String(value || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); }
+function _mistoApplyPickerFilter() {
+  const term = _mistoNormalize(_mistoPickerFilter);
+  document.querySelectorAll("#mistoPlayerPicker .misto-picker-player").forEach((el) => {
+    el.classList.toggle("is-filtered-out", Boolean(term) && !_mistoNormalize(el.dataset.name).includes(term));
+  });
+}
+function _mistoApplyTableFilter() {
+  const term = _mistoNormalize(_mistoTableFilter);
+  document.querySelectorAll("#mistoPlayersBody tr[data-name]").forEach((el) => {
+    el.classList.toggle("is-filtered-out", Boolean(term) && !_mistoNormalize(el.dataset.name).includes(term));
+  });
+}
 function _mistoCurrency(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value) || 0);
 }
@@ -36,24 +51,25 @@ function _mistoQuantity(key, item) {
   const value = _misto.choices?.[key]?.[item];
   return value === true ? 1 : Math.max(0, Math.floor(Number(value) || 0));
 }
-function _mistoRegistrationUnits() {
-  return _mistoPlayers().filter((player) => _mistoIsParticipant(player) && _mistoQuantity(_mistoPlayerKey(player), "registration") > 0).length;
+function _mistoItemUnits(itemId) {
+  return _mistoPlayers().filter((player) => _mistoIsParticipant(player) && _mistoQuantity(_mistoPlayerKey(player), itemId) > 0).length;
 }
-function _mistoPlayerTotal(key, registrationUnits = _mistoRegistrationUnits()) {
+function _mistoPlayerTotal(key) {
   return MISTO_ITEMS.reduce((sum, item) => {
     const quantity = _mistoQuantity(key, item.id);
     const value = _mistoNumber(_misto.costs[item.id]);
-    return sum + (item.shared ? (quantity > 0 && registrationUnits ? value / registrationUnits : 0) : quantity * value);
+    if (!item.shared) return sum + quantity * value;
+    const units = _mistoItemUnits(item.id);
+    return sum + (quantity > 0 && units ? value / units : 0);
   }, 0);
 }
 function _mistoFinancialSummary() {
   const participants = _mistoPlayers().filter(_mistoIsParticipant);
-  const registrationUnits = _mistoRegistrationUnits();
   const itemCounts = Object.fromEntries(MISTO_ITEMS.map((item) => [item.id, 0]));
   const rows = participants.map((player) => {
     const key = _mistoPlayerKey(player);
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
-    return { player, key, total: _mistoPlayerTotal(key, registrationUnits) };
+    return { player, key, total: _mistoPlayerTotal(key) };
   });
   return { participants, itemCounts, rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
 }
@@ -157,6 +173,7 @@ function _mistoRenderPlayerPicker() {
   _mistoPlayers().forEach((player) => {
     const key = _mistoPlayerKey(player);
     const label = document.createElement("label"); label.className = "misto-picker-player";
+    label.dataset.name = `${player.name} ${player.number || ""}`;
     label.innerHTML = `<span><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</span><input type="checkbox" ${_mistoIsParticipant(player) ? "checked" : ""} aria-label="Incluir ${player.name}" /><i></i>`;
     label.querySelector("input").addEventListener("change", (event) => {
       _misto.participants[key] = event.target.checked;
@@ -168,23 +185,24 @@ function _mistoRenderPlayerPicker() {
     });
     picker.append(label);
   });
+  _mistoApplyPickerFilter();
 }
 function _mistoRenderTable() {
   const body = document.getElementById("mistoPlayersBody"); body.innerHTML = "";
   let grandTotal = 0, people = 0;
   const itemCounts = Object.fromEntries(MISTO_ITEMS.map((item) => [item.id, 0]));
   const participants = _mistoPlayers().filter(_mistoIsParticipant);
-  const registrationUnits = _mistoRegistrationUnits();
   const chooseBtn = document.getElementById("mistoChoosePlayers");
   if (chooseBtn) chooseBtn.textContent = `Selecionar jogadores (${participants.length})`;
   if (!participants.length) {
     body.innerHTML = `<tr><td class="misto-empty" colspan="7">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
   }
   participants.forEach((player) => {
-    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key, registrationUnits); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
+    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
     if (selected) { grandTotal += total; people++; }
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
     const tr = document.createElement("tr");
+    tr.dataset.name = `${player.name} ${player.number || ""}`;
     tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" ${item.shared ? "max=1" : ""} step="1" inputmode="numeric" data-item="${item.id}" data-shared="${item.shared ? "true" : "false"}" value="${item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td class="misto-player-total" data-label="Deve pagar">${_mistoCurrency(total)}</td>`;
     tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => { _misto.choices[key] ||= {}; const quantity = Math.max(0, Math.floor(Number(input.value) || 0)); _misto.choices[key][input.dataset.item] = input.dataset.shared === "true" ? Number(quantity > 0) : quantity; _mistoSave(); _mistoRenderTable(); })); body.append(tr);
   });
@@ -202,6 +220,7 @@ function _mistoRenderTable() {
       return `<div><span>${item.label}</span><strong>${quantity}</strong><small>${quantity === 1 ? "unidade" : "unidades"}</small></div>`;
     }).join("");
   }
+  _mistoApplyTableFilter();
 }
 document.addEventListener("DOMContentLoaded", () => {
   if (document.documentElement.dataset.page !== "misto") return;
@@ -212,6 +231,8 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("mistoClosePlayers").addEventListener("click", closePicker);
   document.getElementById("mistoDonePlayers").addEventListener("click", closePicker);
   drawer.addEventListener("click", (event) => { if (event.target === drawer) closePicker(); });
+  document.getElementById("mistoPlayerSearch").addEventListener("input", (event) => { _mistoPickerFilter = event.target.value; _mistoApplyPickerFilter(); });
+  document.getElementById("mistoTableSearch").addEventListener("input", (event) => { _mistoTableFilter = event.target.value; _mistoApplyTableFilter(); });
   document.getElementById("mistoExportPng").addEventListener("click", _mistoExportPNG);
   window.loadCustomPlayers?.();
   document.getElementById("mistoAddPlayer").addEventListener("submit", (event) => {
