@@ -84,6 +84,7 @@ function _mistoExportPNG() {
   ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(_misto.eventName || "Resumo do evento", padding, 86);
   ctx.fillStyle = "#8190a8"; ctx.font = "16px Arial"; ctx.textAlign = "right"; ctx.fillText(new Date().toLocaleDateString("pt-BR"), width - padding, 52); ctx.textAlign = "left";
   ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`VALOR DA INSCRIÇÃO  ${_mistoCurrency(_misto.costs.registration)}`, padding, 116);
+  ctx.fillStyle = "#aebbd0"; ctx.font = "700 18px Arial"; ctx.fillText(`PARTICIPANTES  ${summary.participants.length}`, padding + 420, 116);
   ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, headerH, width - padding * 2, orderH - 18);
   ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
   const orderItems = MISTO_ITEMS.filter((item) => !item.shared);
