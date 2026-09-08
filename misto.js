@@ -114,9 +114,13 @@ function _mistoExportPNG() {
     const itemY = headerH + 59 + Math.floor(index / 3) * 52;
     const quantity = summary.itemCounts[item.id];
     const unitValue = item.shared ? (quantity ? _mistoItemCost(item) / quantity : 0) : _mistoItemCost(item);
+    const quantityLabel = item.shared ? (quantity === 1 ? "pessoa" : "pessoas") : "un.";
+    const valueLabel = item.shared
+      ? (quantity ? `${_mistoCurrency(_mistoItemCost(item))} ÷ ${quantity} = ${_mistoCurrency(unitValue)}` : "Sem pessoas")
+      : `${_mistoCurrency(unitValue)} / un.`;
     ctx.fillStyle = "#aebbd0"; ctx.font = "600 14px Arial"; ctx.fillText(item.label.toUpperCase(), x, itemY);
     ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(String(quantity), x, itemY + 29);
-    ctx.fillStyle = "#8190a8"; ctx.font = "13px Arial"; ctx.fillText(`${_mistoCurrency(unitValue)} / un.`, x + 25, itemY + 27);
+    ctx.fillStyle = "#8190a8"; ctx.font = "13px Arial"; ctx.fillText(`${quantityLabel} · ${valueLabel}`, x + 25, itemY + 27);
   });
   let y = headerH + orderH;
   ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
