@@ -96,7 +96,7 @@ function _mistoFinancialSummary() {
 }
 function _mistoExportPNG() {
   const summary = _mistoFinancialSummary();
-  const width = 1080, padding = 54, headerH = 132, orderH = 270, rowH = 48, footerH = 52;
+  const width = 1080, padding = 54, headerH = 132, orderH = 300, rowH = 48, footerH = 52;
   const height = headerH + orderH + Math.max(1, summary.rows.length) * rowH + footerH + padding;
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d");
@@ -107,22 +107,25 @@ function _mistoExportPNG() {
   ctx.fillStyle = "#4de076"; ctx.font = "700 20px Arial"; ctx.fillText(`VALOR DA INSCRIÇÃO  ${_mistoCurrency(_misto.costs.registration)}`, padding, 116);
   ctx.fillStyle = "#aebbd0"; ctx.font = "700 18px Arial"; ctx.fillText(`PARTICIPANTES  ${summary.participants.length}`, padding + 420, 116);
   ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, headerH, width - padding * 2, orderH - 18);
-  ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR — QUANTIDADES E VALORES", padding + 18, headerH + 28);
+  ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
   const orderItems = MISTO_ITEMS.filter((item) => item.id !== "registration");
+  const orderTableY = headerH + 42;
+  const itemX = padding + 18, quantityX = padding + 410, valueX = padding + 620;
+  ctx.fillStyle = "#172338"; ctx.fillRect(padding + 12, orderTableY, width - padding * 2 - 24, 30);
+  ctx.fillStyle = "#8190a8"; ctx.font = "700 12px Arial";
+  ctx.fillText("ITEM", itemX, orderTableY + 20); ctx.fillText("QUANTIDADE", quantityX, orderTableY + 20); ctx.fillText("VALOR UNITÁRIO / COTA", valueX, orderTableY + 20);
   orderItems.forEach((item, index) => {
-    const x = padding + 18 + (index % 2) * 470;
-    const itemY = headerH + 58 + Math.floor(index / 2) * 68;
+    const itemY = orderTableY + 30 + index * 34;
     const quantity = summary.itemCounts[item.id];
     const unitValue = item.shared ? (quantity ? _mistoItemCost(item) / quantity : 0) : _mistoItemCost(item);
-    ctx.fillStyle = "#aebbd0"; ctx.font = "700 14px Arial"; ctx.fillText(item.label.toUpperCase(), x, itemY);
+    ctx.fillStyle = index % 2 ? "#0d1727" : "#101c2c"; ctx.fillRect(padding + 12, itemY, width - padding * 2 - 24, 34);
+    ctx.fillStyle = "#f0ead8"; ctx.font = "700 14px Arial"; ctx.fillText(item.label, itemX, itemY + 22);
     if (item.shared) {
-      ctx.fillStyle = "#8190a8"; ctx.font = "700 11px Arial"; ctx.fillText("VALOR TOTAL", x, itemY + 21); ctx.fillText("PESSOAS", x + 150, itemY + 21); ctx.fillText("COTA POR PESSOA", x + 255, itemY + 21);
-      ctx.fillStyle = "#f0ead8"; ctx.font = "700 18px Arial"; ctx.fillText(_mistoCurrency(_mistoItemCost(item)), x, itemY + 46); ctx.fillText(String(quantity), x + 150, itemY + 46);
-      ctx.fillStyle = "#4de076"; ctx.fillText(_mistoCurrency(unitValue), x + 255, itemY + 46);
+      ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(`${quantity} ${quantity === 1 ? "pessoa" : "pessoas"}`, quantityX, itemY + 22);
+      ctx.fillStyle = "#4de076"; ctx.font = "700 14px Arial"; ctx.fillText(quantity ? `${_mistoCurrency(_mistoItemCost(item))} ÷ ${quantity} = ${_mistoCurrency(unitValue)}` : "Sem participantes", valueX, itemY + 22);
     } else {
-      ctx.fillStyle = "#8190a8"; ctx.font = "700 11px Arial"; ctx.fillText("QUANTIDADE", x, itemY + 21); ctx.fillText("VALOR UNITÁRIO", x + 160, itemY + 21);
-      ctx.fillStyle = "#f0ead8"; ctx.font = "700 20px Arial"; ctx.fillText(`${quantity} un.`, x, itemY + 46);
-      ctx.fillStyle = "#4de076"; ctx.fillText(_mistoCurrency(unitValue), x + 160, itemY + 46);
+      ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(`${quantity} un.`, quantityX, itemY + 22);
+      ctx.fillStyle = "#4de076"; ctx.font = "700 14px Arial"; ctx.fillText(`${_mistoCurrency(unitValue)} por un.`, valueX, itemY + 22);
     }
   });
   let y = headerH + orderH;
