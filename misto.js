@@ -113,9 +113,10 @@ function _mistoExportPNG() {
     const x = padding + 18 + (index % 3) * 310;
     const itemY = headerH + 59 + Math.floor(index / 3) * 52;
     const quantity = summary.itemCounts[item.id];
+    const itemTotal = item.shared ? (quantity ? _mistoItemCost(item) : 0) : quantity * _mistoItemCost(item);
     ctx.fillStyle = "#aebbd0"; ctx.font = "600 14px Arial"; ctx.fillText(item.label.toUpperCase(), x, itemY);
     ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(String(quantity), x, itemY + 29);
-    ctx.fillStyle = "#8190a8"; ctx.font = "13px Arial"; ctx.fillText(quantity === 1 ? "unidade" : "unidades", x + 25, itemY + 27);
+    ctx.fillStyle = "#8190a8"; ctx.font = "13px Arial"; ctx.fillText(`un. · ${_mistoCurrency(itemTotal)}`, x + 25, itemY + 27);
   });
   let y = headerH + orderH;
   ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
