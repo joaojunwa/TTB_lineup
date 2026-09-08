@@ -20,7 +20,7 @@ const MISTO_COST_ITEMS = [
 ];
 
 function _mistoDefault() {
-  return { eventName: "", costs: Object.fromEntries(MISTO_COST_ITEMS.map((item) => [item.id, 0])), choices: {}, participants: {} };
+  return { eventName: "", costs: Object.fromEntries(MISTO_COST_ITEMS.map((item) => [item.id, 0])), choices: {}, participants: {}, payments: {} };
 }
 function _mistoNormalizeState(state = {}) {
     const loaded = { ..._mistoDefault(), ...state };
@@ -71,6 +71,7 @@ function _mistoQuantity(key, item) {
   const value = _misto.choices?.[key]?.[item];
   return value === true ? 1 : Math.max(0, Math.floor(Number(value) || 0));
 }
+function _mistoPaid(key) { return _mistoNumber(_misto.payments?.[key]); }
 function _mistoItemCost(item) { return _mistoNumber(_misto.costs[item.costKey || item.id]); }
 function _mistoItemUnits(itemId) {
   return _mistoPlayers().filter((player) => _mistoIsParticipant(player) && _mistoQuantity(_mistoPlayerKey(player), itemId) > 0).length;
@@ -90,7 +91,9 @@ function _mistoFinancialSummary() {
   const rows = participants.map((player) => {
     const key = _mistoPlayerKey(player);
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
-    return { player, key, total: _mistoPlayerTotal(key) };
+    const total = _mistoPlayerTotal(key);
+    const paid = _mistoPaid(key);
+    return { player, key, total, paid, remaining: Math.max(0, total - paid) };
   });
   return { participants, itemCounts, rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
 }
@@ -131,7 +134,7 @@ function _mistoExportPNG() {
   let y = headerH + orderH;
   ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
   ctx.fillStyle = "#8190a8"; ctx.font = "700 13px Arial";
-  ctx.fillText("PARTICIPANTE", padding + 16, y + 24); ctx.fillText("ITENS", padding + 370, y + 24); ctx.textAlign = "right"; ctx.fillText("DEVE PAGAR", width - padding - 16, y + 24); ctx.textAlign = "left";
+  ctx.fillText("PARTICIPANTE", padding + 16, y + 24); ctx.fillText("ITENS", padding + 330, y + 24); ctx.textAlign = "right"; ctx.fillText("TOTAL", width - padding - 240, y + 24); ctx.fillText("PAGO", width - padding - 130, y + 24); ctx.fillText("FALTA", width - padding - 16, y + 24); ctx.textAlign = "left";
   y += 38;
   if (!summary.rows.length) {
     ctx.fillStyle = "#111c2e"; ctx.fillRect(padding, y, width - padding * 2, rowH);
@@ -146,8 +149,11 @@ function _mistoExportPNG() {
       .map(({ item, quantity }) => `${shortLabels[item.id]}${quantity > 1 ? ` ×${quantity}` : ""}`)
       .join("  ·  ") || "—";
     ctx.fillStyle = "#f0ead8"; ctx.font = "600 17px Arial"; ctx.fillText(row.player.name + (row.player.number ? `  #${row.player.number}` : ""), padding + 16, y + 30);
-    ctx.fillStyle = "#aebbd0"; ctx.font = "14px Arial"; ctx.fillText(consumption, padding + 370, y + 29);
-    ctx.fillStyle = "#4de076"; ctx.font = "700 17px Arial"; ctx.textAlign = "right"; ctx.fillText(_mistoCurrency(row.total), width - padding - 16, y + 30); ctx.textAlign = "left";
+    ctx.fillStyle = "#aebbd0"; ctx.font = "13px Arial"; ctx.fillText(consumption, padding + 330, y + 29);
+    ctx.font = "700 14px Arial"; ctx.textAlign = "right";
+    ctx.fillStyle = "#f0ead8"; ctx.fillText(_mistoCurrency(row.total), width - padding - 240, y + 30);
+    ctx.fillStyle = "#aebbd0"; ctx.fillText(_mistoCurrency(row.paid), width - padding - 130, y + 30);
+    ctx.fillStyle = "#4de076"; ctx.fillText(_mistoCurrency(row.remaining), width - padding - 16, y + 30); ctx.textAlign = "left";
     y += rowH;
   });
   ctx.fillStyle = "#56657d"; ctx.font = "14px Arial"; ctx.fillText("Inscrição total dividida entre quem está marcado na inscrição.", padding, height - 24);
@@ -229,16 +235,26 @@ function _mistoRenderTable() {
   const chooseBtn = document.getElementById("mistoChoosePlayers");
   if (chooseBtn) chooseBtn.textContent = `Selecionar jogadores (${participants.length})`;
   if (!participants.length) {
-    body.innerHTML = `<tr><td class="misto-empty" colspan="9">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
+    body.innerHTML = `<tr><td class="misto-empty" colspan="10">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
   }
   participants.forEach((player) => {
-    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
+    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const paid = _mistoPaid(key); const remaining = Math.max(0, total - paid); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
     if (selected) { grandTotal += total; people++; }
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
     const tr = document.createElement("tr");
     tr.dataset.name = `${player.name} ${player.number || ""}`;
-    tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" ${item.shared ? "max=1" : ""} step="1" inputmode="numeric" data-item="${item.id}" data-shared="${item.shared ? "true" : "false"}" value="${item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td class="misto-player-total" data-label="Deve pagar">${_mistoCurrency(total)}</td>`;
-    tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => { _misto.choices[key] ||= {}; const quantity = Math.max(0, Math.floor(Number(input.value) || 0)); _misto.choices[key][input.dataset.item] = input.dataset.shared === "true" ? Number(quantity > 0) : quantity; _mistoSave(); _mistoRenderTable(); })); body.append(tr);
+    tr.innerHTML = `<td class="misto-player-name"><strong>${player.name}</strong>${player.number ? `<small>#${player.number}</small>` : ""}</td>${MISTO_ITEMS.map((item) => `<td data-label="${item.label}"><label class="misto-quantity"><input type="number" min="0" ${item.shared ? "max=1" : ""} step="1" inputmode="numeric" data-item="${item.id}" data-shared="${item.shared ? "true" : "false"}" value="${item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id)}" aria-label="Quantidade de ${item.label} para ${player.name}" /></label></td>`).join("")}<td data-label="Já pagou"><label class="misto-payment"><b>R$</b><input type="number" min="0" step="0.01" inputmode="decimal" data-payment="true" value="${paid}" aria-label="Valor já pago por ${player.name}" /></label></td><td class="misto-player-total" data-label="Falta pagar">${_mistoCurrency(remaining)}</td>`;
+    tr.querySelectorAll("input").forEach((input) => input.addEventListener("change", () => {
+      if (input.dataset.payment === "true") {
+        _misto.payments ||= {};
+        _misto.payments[key] = _mistoNumber(input.value);
+      } else {
+        _misto.choices[key] ||= {};
+        const quantity = Math.max(0, Math.floor(Number(input.value) || 0));
+        _misto.choices[key][input.dataset.item] = input.dataset.shared === "true" ? Number(quantity > 0) : quantity;
+      }
+      _mistoSave(); _mistoRenderTable();
+    })); body.append(tr);
   });
   document.getElementById("mistoGrandTotal").textContent = _mistoCurrency(_misto.costs.registration);
   document.getElementById("mistoPeopleCount").textContent = participants.length;
