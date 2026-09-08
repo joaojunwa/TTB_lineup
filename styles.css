@@ -5866,7 +5866,7 @@ details[open] .historico-summary::before {
 .misto-costs, .misto-summary, .misto-players-section { border: 1px solid var(--line); background: #0a1020; border-radius: 10px; }
 .misto-costs { padding: 14px; }
 .misto-section-title { margin: 0 0 11px; color: var(--text-muted); font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.misto-cost-grid { display: grid; grid-template-columns: repeat(5, minmax(130px, 1fr)); gap: 10px; }
+.misto-cost-grid { display: grid; grid-template-columns: repeat(3, minmax(130px, 1fr)); gap: 10px; }
 .misto-cost-field { display: grid; gap: 5px; color: #cbd5e1; font-size: .78rem; font-weight: 700; }
 .misto-cost-field div { display: flex; align-items: center; gap: 6px; padding: 0 9px; background: rgba(255,255,255,.06); border: 1px solid var(--line); border-radius: 7px; }
 .misto-cost-field b { color: var(--accent); font-size: .8rem; }
@@ -5876,11 +5876,11 @@ details[open] .historico-summary::before {
 .misto-summary div { display: grid; gap: 3px; }
 .misto-summary span, .misto-summary small { color: var(--text-muted); font-size: .77rem; }
 .misto-summary strong { color: #4de076; font-size: 1.25rem; }
-.misto-order-summary { display: grid; grid-template-columns: minmax(180px, .7fr) 2fr; align-items: center; gap: 14px; margin: 14px 0; padding: 14px 16px; border: 1px solid rgba(246,195,71,.3); border-radius: 10px; background: rgba(246,195,71,.06); }.misto-order-summary .misto-section-title { display: block; margin: 0 0 3px; }.misto-order-summary > div > small { color: var(--text-muted); font-size: .74rem; }.misto-order-items { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }.misto-order-items div { display: grid; justify-items: center; gap: 1px; padding: 8px 5px; border-radius: 7px; background: rgba(10,16,32,.48); }.misto-order-items span { color: #cbd5e1; font-size: .7rem; font-weight: 700; }.misto-order-items strong { color: var(--accent); font-size: 1.25rem; }.misto-order-items small { color: var(--text-muted); font-size: .65rem; }
+.misto-order-summary { display: grid; grid-template-columns: minmax(180px, .7fr) 2fr; align-items: center; gap: 14px; margin: 14px 0; padding: 14px 16px; border: 1px solid rgba(246,195,71,.3); border-radius: 10px; background: rgba(246,195,71,.06); }.misto-order-summary .misto-section-title { display: block; margin: 0 0 3px; }.misto-order-summary > div > small { color: var(--text-muted); font-size: .74rem; }.misto-order-items { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }.misto-order-items div { display: grid; justify-items: center; gap: 1px; padding: 8px 5px; border-radius: 7px; background: rgba(10,16,32,.48); }.misto-order-items span { color: #cbd5e1; font-size: .7rem; font-weight: 700; }.misto-order-items strong { color: var(--accent); font-size: 1.25rem; }.misto-order-items small { color: var(--text-muted); font-size: .65rem; }
 .misto-table-scroll { overflow-x: auto; }
 .misto-table-head { display: flex; justify-content: space-between; align-items: center; padding: 15px 16px 10px; }.misto-table-head .misto-section-title { display: block; margin: 0 0 3px; }.misto-table-head small { color: var(--text-muted); font-size: .75rem; }
 .misto-add-player { display: grid; grid-template-columns: minmax(150px, 1fr) 100px 120px auto; gap: 8px; padding: 0 16px 14px; border-bottom: 1px solid var(--line); }.misto-add-player input { min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 7px; color: #f0ead8; background: rgba(255,255,255,.06); font: inherit; font-size: .8rem; outline: none; }.misto-add-player input:focus { border-color: rgba(246,195,71,.6); }.misto-add-player button { border: 0; border-radius: 7px; padding: 8px 11px; color: #0a1020; background: var(--accent); font: inherit; font-size: .78rem; font-weight: 800; cursor: pointer; white-space: nowrap; }
-.misto-table { width: 100%; min-width: 700px; border-collapse: collapse; }
+.misto-table { width: 100%; min-width: 900px; border-collapse: collapse; }
 .misto-table th { padding: 11px 14px; color: var(--text-muted); font-size: .69rem; letter-spacing: .06em; text-align: center; text-transform: uppercase; background: #111827; }
 .misto-table th:first-child { text-align: left; }
 .misto-table td { padding: 10px 14px; text-align: center; border-top: 1px solid rgba(255,255,255,.06); }

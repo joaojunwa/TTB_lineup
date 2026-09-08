@@ -4,8 +4,10 @@ const MISTO_UPDATED_KEY = "ttb_misto_updated_at";
 const MISTO_REMOTE_ID = "ttb_misto_global";
 const MISTO_ITEMS = [
   { id: "registration", label: "Inscrição", shared: true },
-  { id: "breakfast", label: "Café da manhã" },
-  { id: "lunch", label: "Almoço" },
+  { id: "breakfastSaturday", label: "Café (sábado)" },
+  { id: "breakfastSunday", label: "Café (domingo)" },
+  { id: "lunchSaturday", label: "Almoço (sábado)" },
+  { id: "lunchSunday", label: "Almoço (domingo)" },
   { id: "lodging", label: "Alojamento", shared: true },
   { id: "happyHour", label: "Happy hour (HH)" },
 ];
@@ -14,7 +16,17 @@ function _mistoDefault() {
   return { eventName: "", costs: Object.fromEntries(MISTO_ITEMS.map((item) => [item.id, 0])), choices: {}, participants: {} };
 }
 function _mistoLoad() {
-  try { return { ..._mistoDefault(), ...JSON.parse(localStorage.getItem(MISTO_KEY) || "{}") }; }
+  try {
+    const loaded = { ..._mistoDefault(), ...JSON.parse(localStorage.getItem(MISTO_KEY) || "{}") };
+    loaded.costs = { ..._mistoDefault().costs, ...(loaded.costs || {}) };
+    if (loaded.costs.breakfast !== undefined && loaded.costs.breakfastSaturday === 0) loaded.costs.breakfastSaturday = loaded.costs.breakfast;
+    if (loaded.costs.lunch !== undefined && loaded.costs.lunchSaturday === 0) loaded.costs.lunchSaturday = loaded.costs.lunch;
+    Object.values(loaded.choices || {}).forEach((choice) => {
+      if (choice.breakfast !== undefined && choice.breakfastSaturday === undefined) choice.breakfastSaturday = choice.breakfast;
+      if (choice.lunch !== undefined && choice.lunchSaturday === undefined) choice.lunchSaturday = choice.lunch;
+    });
+    return loaded;
+  }
   catch (_) { return _mistoDefault(); }
 }
 let _misto = _mistoLoad();
@@ -75,7 +87,7 @@ function _mistoFinancialSummary() {
 }
 function _mistoExportPNG() {
   const summary = _mistoFinancialSummary();
-  const width = 1080, padding = 54, headerH = 132, orderH = 136, rowH = 48, footerH = 52;
+  const width = 1080, padding = 54, headerH = 132, orderH = 176, rowH = 48, footerH = 52;
   const height = headerH + orderH + Math.max(1, summary.rows.length) * rowH + footerH + padding;
   const canvas = document.createElement("canvas"); canvas.width = width; canvas.height = height;
   const ctx = canvas.getContext("2d");
@@ -89,11 +101,12 @@ function _mistoExportPNG() {
   ctx.fillStyle = "#f6c347"; ctx.font = "700 14px Arial"; ctx.fillText("RESUMO PARA PEDIR", padding + 18, headerH + 28);
   const orderItems = MISTO_ITEMS.filter((item) => !item.shared);
   orderItems.forEach((item, index) => {
-    const x = padding + 18 + index * 238;
+    const x = padding + 18 + (index % 3) * 310;
+    const itemY = headerH + 59 + Math.floor(index / 3) * 52;
     const quantity = summary.itemCounts[item.id];
-    ctx.fillStyle = "#aebbd0"; ctx.font = "600 15px Arial"; ctx.fillText(item.label.toUpperCase(), x, headerH + 59);
-    ctx.fillStyle = "#f0ead8"; ctx.font = "700 27px Arial"; ctx.fillText(String(quantity), x, headerH + 93);
-    ctx.fillStyle = "#8190a8"; ctx.font = "14px Arial"; ctx.fillText(quantity === 1 ? "unidade" : "unidades", x + 29, headerH + 91);
+    ctx.fillStyle = "#aebbd0"; ctx.font = "600 14px Arial"; ctx.fillText(item.label.toUpperCase(), x, itemY);
+    ctx.fillStyle = "#f0ead8"; ctx.font = "700 24px Arial"; ctx.fillText(String(quantity), x, itemY + 29);
+    ctx.fillStyle = "#8190a8"; ctx.font = "13px Arial"; ctx.fillText(quantity === 1 ? "unidade" : "unidades", x + 25, itemY + 27);
   });
   let y = headerH + orderH;
   ctx.fillStyle = "#172338"; ctx.fillRect(padding, y, width - padding * 2, 38);
@@ -106,7 +119,7 @@ function _mistoExportPNG() {
   }
   summary.rows.forEach((row, index) => {
     ctx.fillStyle = index % 2 ? "#0d1727" : "#101c2c"; ctx.fillRect(padding, y, width - padding * 2, rowH);
-    const shortLabels = { registration: "Inscr.", breakfast: "Café", lunch: "Almoço", lodging: "Aloj.", happyHour: "HH" };
+    const shortLabels = { registration: "Inscr.", breakfastSaturday: "Café sáb.", breakfastSunday: "Café dom.", lunchSaturday: "Almoço sáb.", lunchSunday: "Almoço dom.", lodging: "Aloj.", happyHour: "HH" };
     const consumption = MISTO_ITEMS
       .map((item) => ({ item, quantity: _mistoQuantity(row.key, item.id) }))
       .filter(({ quantity }) => quantity > 0)
@@ -196,7 +209,7 @@ function _mistoRenderTable() {
   const chooseBtn = document.getElementById("mistoChoosePlayers");
   if (chooseBtn) chooseBtn.textContent = `Selecionar jogadores (${participants.length})`;
   if (!participants.length) {
-    body.innerHTML = `<tr><td class="misto-empty" colspan="7">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
+    body.innerHTML = `<tr><td class="misto-empty" colspan="9">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
   }
   participants.forEach((player) => {
     const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
