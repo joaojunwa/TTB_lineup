@@ -237,7 +237,11 @@ function _mistoRenderTable() {
       .reduce((sum, source) => sum + itemCounts[source.id], 0);
     const total = item.shared ? (quantity ? _mistoNumber(_misto.costs[item.id]) : 0) : quantity * _mistoNumber(_misto.costs[item.id]);
     const el = document.querySelector(`[data-cost-total="${item.id}"]`);
-    if (el) el.textContent = item.shared ? `${quantity} ${quantity === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido` : `${quantity} ${quantity === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
+    if (el) {
+      el.textContent = item.shared
+        ? `${quantity} ${quantity === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido · ${_mistoCurrency(quantity ? total / quantity : 0)} por pessoa`
+        : `${quantity} ${quantity === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
+    }
   });
   const orderSummary = document.getElementById("mistoOrderSummary");
   if (orderSummary) {
