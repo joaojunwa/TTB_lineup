@@ -58,6 +58,7 @@ function _mistoCurrency(value) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(value) || 0);
 }
 function _mistoNumber(value) { return Math.max(0, Number(String(value).replace(",", ".")) || 0); }
+function _mistoRoundUp(value) { return Math.max(0, Math.ceil((Number(value) || 0) - 1e-9)); }
 function _mistoPlayers() {
   const all = [...(window.LINEUP_DATA || []), ...(window.BENCH_DATA || [])];
   try { all.push(...(JSON.parse(localStorage.getItem("ttb_custom_players_v1")) || [])); } catch (_) {}
@@ -77,13 +78,14 @@ function _mistoItemUnits(itemId) {
   return _mistoPlayers().filter((player) => _mistoIsParticipant(player) && _mistoQuantity(_mistoPlayerKey(player), itemId) > 0).length;
 }
 function _mistoPlayerTotal(key) {
-  return MISTO_ITEMS.reduce((sum, item) => {
+  const raw = MISTO_ITEMS.reduce((sum, item) => {
     const quantity = _mistoQuantity(key, item.id);
     const value = _mistoItemCost(item);
     if (!item.shared) return sum + quantity * value;
     const units = _mistoItemUnits(item.id);
     return sum + (quantity > 0 && units ? value / units : 0);
   }, 0);
+  return _mistoRoundUp(raw);
 }
 function _mistoFinancialSummary() {
   const participants = _mistoPlayers().filter(_mistoIsParticipant);
@@ -120,7 +122,7 @@ function _mistoExportPNG() {
   orderItems.forEach((item, index) => {
     const itemY = orderTableY + 30 + index * 34;
     const quantity = summary.itemCounts[item.id];
-    const unitValue = item.shared ? (quantity ? _mistoItemCost(item) / quantity : 0) : _mistoItemCost(item);
+    const unitValue = item.shared ? (quantity ? _mistoRoundUp(_mistoItemCost(item) / quantity) : 0) : _mistoItemCost(item);
     ctx.fillStyle = index % 2 ? "#0d1727" : "#101c2c"; ctx.fillRect(padding + 12, itemY, width - padding * 2 - 24, 34);
     ctx.fillStyle = "#f0ead8"; ctx.font = "700 14px Arial"; ctx.fillText(item.label, itemX, itemY + 22);
     if (item.shared) {
@@ -266,7 +268,7 @@ function _mistoRenderTable() {
     const el = document.querySelector(`[data-cost-total="${item.id}"]`);
     if (el) {
       el.textContent = item.shared
-        ? `${quantity} ${quantity === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido · ${_mistoCurrency(quantity ? total / quantity : 0)} por pessoa`
+        ? `${quantity} ${quantity === 1 ? "cota" : "cotas"} · ${_mistoCurrency(total)} dividido · ${_mistoCurrency(quantity ? _mistoRoundUp(total / quantity) : 0)} por pessoa`
         : `${quantity} ${quantity === 1 ? "unidade" : "unidades"} · ${_mistoCurrency(total)}`;
     }
   });
