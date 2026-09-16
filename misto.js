@@ -95,7 +95,7 @@ function _mistoFinancialSummary() {
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
     const total = _mistoPlayerTotal(key);
     const paid = _mistoPaid(key);
-    return { player, key, total, paid, remaining: Math.max(0, total - paid) };
+    return { player, key, total, paid, remaining: _mistoRoundUp(total - paid) };
   });
   return { participants, itemCounts, rows, total: rows.reduce((sum, row) => sum + row.total, 0) };
 }
@@ -240,7 +240,7 @@ function _mistoRenderTable() {
     body.innerHTML = `<tr><td class="misto-empty" colspan="10">Nenhum jogador selecionado. Use “Selecionar jogadores” para montar o grupo do Misto.</td></tr>`;
   }
   participants.forEach((player) => {
-    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const paid = _mistoPaid(key); const remaining = Math.max(0, total - paid); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
+    const key = _mistoPlayerKey(player); const total = _mistoPlayerTotal(key); const paid = _mistoPaid(key); const remaining = _mistoRoundUp(total - paid); const selected = MISTO_ITEMS.some((item) => _mistoQuantity(key, item.id) > 0);
     if (selected) { grandTotal += total; people++; }
     MISTO_ITEMS.forEach((item) => { itemCounts[item.id] += item.shared ? Number(_mistoQuantity(key, item.id) > 0) : _mistoQuantity(key, item.id); });
     const tr = document.createElement("tr");
