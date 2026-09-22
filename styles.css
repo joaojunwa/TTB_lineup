@@ -1080,6 +1080,43 @@ h1 {
   color: #f6c347;
 }
 
+/* ── Filtro global de posição (afeta Lineup/Banco/Elenco) ── */
+.pos-filter-bar-global {
+  padding: 0 0 8px;
+}
+
+/* ── Ordenação do elenco/banco ── */
+.roster-sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 0 8px;
+}
+
+.roster-sort-wrap label {
+  font-size: 0.71rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.roster-sort-select {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: #f0ead8;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+
+.roster-sort-select:focus {
+  border-color: rgba(246, 195, 71, 0.6);
+}
+
 /* ── Tags de posição nos cards ── */
 .roster-pos-tags {
   display: flex;

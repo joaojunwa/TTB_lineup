@@ -30,6 +30,8 @@ let lineupPending = new Set();
 let bancoPlayers = new Set();
 let rosterSearchTerm = "";
 let positionFilter = "";
+let rosterSort = "default";
+const NO_TAG_FILTER = "__NONE__";
 let designatedPitcherId = "";
 const UNDO_LIMIT = 30;
 let undoStack = [];
@@ -1392,6 +1394,49 @@ function renderPositionButtons() {
   });
 }
 
+function sortRosterPlayers(players, groupName) {
+  if (rosterSort === "default") return players;
+  const list = [...players];
+  if (rosterSort === "name") {
+    list.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (rosterSort === "number") {
+    list.sort((a, b) => (Number(a.number) || 999) - (Number(b.number) || 999));
+  } else if (rosterSort === "avg") {
+    /* Ordem de rebatida do Lineup é a informação relevante — não reordena essa seção */
+    if (groupName === "Lineup") return players;
+    list.sort((a, b) => (getPlayerAvg(b.id) ?? -1) - (getPlayerAvg(a.id) ?? -1));
+  }
+  return list;
+}
+
+function renderRosterFilterBar() {
+  const filterBar = document.querySelector("#rosterFilterBar");
+  if (!filterBar) return;
+  filterBar.innerHTML = "";
+  ["P", "C", "IF", "OF", "UT", NO_TAG_FILTER].forEach((tag) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = `pos-filter-btn${positionFilter === tag ? " is-active" : ""}`;
+    btn.textContent = tag === NO_TAG_FILTER ? "Sem posição" : tag;
+    btn.title = tag === NO_TAG_FILTER
+      ? "Jogadores do elenco sem nenhuma tag de posição definida"
+      : (POSITION_TOOLTIPS[tag] || tag);
+    btn.addEventListener("click", () => {
+      positionFilter = positionFilter === tag ? "" : tag;
+      try { sessionStorage.setItem("ttb_pos_filter", positionFilter); } catch (_) {}
+      renderRoster();
+    });
+    filterBar.append(btn);
+  });
+}
+
+function matchesPositionFilter(player) {
+  if (!positionFilter) return true;
+  const tags = player.positionTags || [];
+  if (positionFilter === NO_TAG_FILTER) return tags.length === 0;
+  return tags.includes(positionFilter);
+}
+
 function renderRoster() {
   /* Preserva o scroll para a lista não "pular" a cada interação */
   const rosterScroll = playerRoster.scrollTop;
@@ -1399,13 +1444,16 @@ function renderRoster() {
   playerRoster.innerHTML = "";
   rosterCount.textContent = `${roster.length} players`;
 
+  renderRosterFilterBar();
+
   const term = rosterSearchTerm.trim().toLowerCase();
 
   getRosterSections().forEach(({ groupName, players }) => {
     const filtered = term ? players.filter((p) => matchesSearch(p, term)) : players;
-    const displayPlayers = (groupName === "Elenco" && positionFilter)
-      ? filtered.filter((p) => (p.positionTags || []).includes(positionFilter))
-      : filtered;
+    const displayPlayers = sortRosterPlayers(
+      positionFilter ? filtered.filter(matchesPositionFilter) : filtered,
+      groupName,
+    );
 
     /* Oculta seções sem resultado durante busca (exceto Lineup sempre visível) */
     if (term && filtered.length === 0 && groupName !== "Lineup") return;
@@ -1417,25 +1465,6 @@ function renderRoster() {
     const group = document.createElement("section");
     group.className = `roster-group ${groupClass}`;
     group.innerHTML = `<h3>${escapeHtml(groupName)}</h3>`;
-
-    if (groupName === "Elenco") {
-      const filterBar = document.createElement("div");
-      filterBar.className = "pos-filter-bar";
-      ["P", "C", "IF", "OF", "UT"].forEach((tag) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = `pos-filter-btn${positionFilter === tag ? " is-active" : ""}`;
-        btn.textContent = tag;
-        btn.title = POSITION_TOOLTIPS[tag] || tag;
-        btn.addEventListener("click", () => {
-          positionFilter = positionFilter === tag ? "" : tag;
-          try { sessionStorage.setItem("ttb_pos_filter", positionFilter); } catch (_) {}
-          renderRoster();
-        });
-        filterBar.append(btn);
-      });
-      group.append(filterBar);
-    }
 
     if (groupName === "Lineup") {
       addLineupDropTarget(group);
@@ -1565,10 +1594,12 @@ function renderRoster() {
 
     group.append(grid);
 
-    if (groupName === "Elenco" && positionFilter && displayPlayers.length === 0 && filtered.length > 0) {
+    if (positionFilter && displayPlayers.length === 0 && filtered.length > 0) {
       const hint = document.createElement("p");
       hint.className = "lineup-empty-hint";
-      hint.textContent = `Nenhum jogador com posição ${positionFilter}`;
+      hint.textContent = positionFilter === NO_TAG_FILTER
+        ? "Todos aqui já têm posição definida"
+        : `Nenhum jogador com posição ${positionFilter}`;
       group.append(hint);
     } else if (filtered.length === 0 && !term) {
       const hint = document.createElement("p");
@@ -2188,6 +2219,12 @@ if (PAGE === "lineup") {
     renderRoster();
   });
 
+  document.querySelector("#rosterSort")?.addEventListener("change", (event) => {
+    rosterSort = event.currentTarget.value;
+    try { sessionStorage.setItem("ttb_roster_sort", rosterSort); } catch (_) {}
+    renderRoster();
+  });
+
   clearButton.addEventListener("click", () => {
     pushUndoState();
     assignments = buildEmptyAssignments();
@@ -2303,8 +2340,13 @@ if (PAGE === "lineup") {
     if (e.key === "Enter") document.querySelector("#addPlayerSave")?.click();
   });
 
-  /* Restore position filter from last session */
+  /* Restore position filter and sort from last session */
   try { positionFilter = sessionStorage.getItem("ttb_pos_filter") || ""; } catch (_) {}
+  try {
+    rosterSort = sessionStorage.getItem("ttb_roster_sort") || "default";
+    const sortSelect = document.querySelector("#rosterSort");
+    if (sortSelect) sortSelect.value = rosterSort;
+  } catch (_) {}
 
   loadPlayerTags();
   loadCustomPlayers();
